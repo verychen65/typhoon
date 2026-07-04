@@ -1,0 +1,75 @@
+name: Download Typhoon CSV
+
+on:
+  schedule:
+    # UTC 00:30, 06:30, 12:30, 18:30 = Beijing 08:30, 14:30, 20:30, 02:30
+    - cron: '30 0,6,12,18 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download CSV files
+        run: |
+          mkdir -p data
+          MODELS="FNV3 GENC"
+          TYPES="ensemble ensemble_mean"
+          # Today's init times in UTC
+          for hour in 00 06 12 18; do
+            DATE=$(date -u +%Y_%m_%dT${hour}_00)
+            for model in $MODELS; do
+              for dtype in $TYPES; do
+                FILE="data/${model}_${dtype}_${DATE}_paired.csv"
+                URL="https://deepmind.google.com/science/weatherlab/download/cyclones/${model}/${dtype}/paired/csv/${model}_${DATE}_paired.csv"
+                echo "Downloading $URL"
+                # Try download, allow failure (data may not be published yet)
+                HTTP_CODE=$(curl -sL -o "$FILE" -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$URL" || true)
+                SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+                echo "  HTTP $HTTP_CODE, size $SIZE bytes"
+                # Remove if too small (error page) or failed
+                if [ "$SIZE" -lt 1000 ] || [ "$HTTP_CODE" != "200" ]; then
+                  echo "  Skipping (not available or too small)"
+                  rm -f "$FILE"
+                fi
+              done
+            done
+          done
+
+          # Also download yesterday's 18:00 if missing (for late runs)
+          YDATE=$(date -u -d 'yesterday' +%Y_%m_%dT18_00)
+          for model in $MODELS; do
+            for dtype in $TYPES; do
+              FILE="data/${model}_${dtype}_${YDATE}_paired.csv"
+              if [ ! -f "$FILE" ]; then
+                URL="https://deepmind.google.com/science/weatherlab/download/cyclones/${model}/${dtype}/paired/csv/${model}_${YDATE}_paired.csv"
+                echo "Downloading yesterday $URL"
+                HTTP_CODE=$(curl -sL -o "$FILE" -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$URL" || true)
+                SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+                if [ "$SIZE" -lt 1000 ] || [ "$HTTP_CODE" != "200" ]; then
+                  rm -f "$FILE"
+                fi
+              fi
+            done
+          done
+
+      - name: Clean old files (keep 7 days)
+        run: |
+          find data/ -name "*.csv" -mtime +7 -delete 2>/dev/null || true
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ || true
+          if git diff --cached --quiet; then
+            echo "No new data to commit"
+          else
+            git commit -m "Auto-update typhoon CSV data $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
