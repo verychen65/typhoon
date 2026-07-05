@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老橘子台风追踪系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #1f2937;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ===== Header ===== */
+        header {
+            height: 52px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 16px;
+            flex-shrink: 0;
+            z-index: 1000;
+        }
+        header h1 {
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        header h1 .icon { margin-right: 6px; }
+        #typhoonName {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-left: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+            padding: 4px 10px;
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+        #typhoonName:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+            color: #0369a1;
+        }
+        .import-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+        .btn {
+            padding: 6px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #fff;
+            color: #374151;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #f9fafb; border-color: #9ca3af; }
+        .btn-primary {
+            background: #1a73e8;
+            color: #fff;
+            border-color: #1a73e8;
+        }
+        .btn-primary:hover { background: #1557b0; border-color: #1557b0; }
+        .btn-success {
+            background: #1e8e3e;
+            color: #fff;
+            border-color: #1e8e3e;
+        }
+        .btn-success:hover { background: #176b2e; border-color: #176b2e; }
+        .btn-success:disabled { background: #9ca3af; border-color: #9ca3af; cursor: not-allowed; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        select.batch-select {
+            padding: 5px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 12px;
+            background: #fff;
+            color: #374151;
+        }
+        #fileStatus { font-size: 12px; color: #6b7280; }
+
+        /* Toggle buttons */
+        .toggle-group {
+            display: flex;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .toggle-btn {
+            padding: 5px 12px;
+            font-size: 12px;
+            background: #fff;
+            color: #6b7280;
+            cursor: pointer;
+            border: none;
+            border-right: 1px solid #d1d5db;
+            transition: all 0.15s;
+        }
+        .toggle-btn:last-child { border-right: none; }
+        .toggle-btn.active {
+            background: #1a73e8;
+            color: #fff;
+        }
+        .toggle-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .toggle-btn.model-btn.active.fnv3 { background: #ea4335; }
+        .toggle-btn.model-btn.active.genc { background: #1a73e8; }
+
+        /* ===== Main ===== */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #cbd5e1;
+            margin: 24px;
+            border-radius: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .drop-zone.dragover {
+            border-color: #1a73e8;
+            background: rgba(26, 115, 232, 0.05);
+        }
+        .drop-content { text-align: center; color: #6b7280; }
+        .drop-content .upload-icon { font-size: 48px; margin-bottom: 16px; }
+        .drop-content h2 { font-size: 18px; font-weight: 500; color: #374151; margin-bottom: 8px; }
+        .drop-content p { font-size: 13px; margin-bottom: 4px; }
+        .drop-content .hint { font-size: 12px; color: #9ca3af; margin-top: 16px; }
+        .drop-content .format-link { color: #1a73e8; text-decoration: none; }
+        .drop-content .format-link:hover { text-decoration: underline; }
+
+        /* Data view */
+        .data-view {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .data-view.active { display: flex; }
+
+        /* View tabs */
+        .view-tabs {
+            display: flex;
+            gap: 0;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+        .view-tab {
+            padding: 8px 20px;
+            font-size: 13px;
+            color: #6b7280;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+        .view-tab:hover { color: #374151; }
+        .view-tab.active {
+            color: #1a73e8;
+            border-bottom-color: #1a73e8;
+            font-weight: 600;
+        }
+        .tab-content {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+        }
+        .tab-content.active { display: flex; }
+
+        /* Map */
+        .map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #dbe4eb;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 340px;
+            flex-shrink: 0;
+            background: #fff;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            padding: 14px;
+        }
+        .panel { margin-bottom: 14px; }
+        .typhoon-tooltip {
+            background: rgba(255,255,255,0.95) !important;
+            border: 1px solid #e5e7eb !important;
+            border-radius: 6px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+            color: #1f2937 !important;
+            padding: 6px 10px !important;
+        }
+        .typhoon-tooltip .leaflet-tooltip-tip {
+            background: rgba(255,255,255,0.95) !important;
+            border: 1px solid #e5e7eb !important;
+        }
+        .panel-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .track-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .track-select:focus { outline: none; border-color: #1a73e8; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .stat-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 8px 10px;
+        }
+        .stat-label { font-size: 10px; color: #9ca3af; margin-bottom: 2px; }
+        .stat-value { font-size: 13px; font-weight: 600; color: #1f2937; }
+        .stat-value.fnv3 { color: #ea4335; }
+        .stat-value.genc { color: #1a73e8; }
+
+        .chart-container {
+            position: relative;
+            height: 160px;
+            margin-bottom: 8px;
+        }
+        .chart-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .legend {
+            display: flex;
+            gap: 10px;
+            font-size: 10px;
+            color: #6b7280;
+            align-items: center;
+            margin-top: 2px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 3px; }
+        .legend-color { width: 10px; height: 10px; border-radius: 2px; }
+
+        /* ===== Footer / Time controls ===== */
+        footer {
+            height: 52px;
+            background: #fff;
+            border-top: 1px solid #e5e7eb;
+            display: none;
+            align-items: center;
+            padding: 0 20px;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        footer.active { display: flex; }
+        .time-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        .time-btn:hover { background: #f9fafb; }
+        .time-btn.play-btn {
+            background: #1a73e8;
+            color: #fff;
+            border-color: #1a73e8;
+            width: 34px;
+            height: 34px;
+            font-size: 14px;
+        }
+        .time-btn.play-btn:hover { background: #1557b0; }
+        #timeSlider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e5e7eb;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        #timeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #1a73e8;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #timeSlider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #1a73e8;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        .time-label {
+            font-size: 12px;
+            color: #374151;
+            min-width: 160px;
+            text-align: right;
+        }
+        .time-label .lead-time { color: #1a73e8; font-weight: 600; font-size: 13px; }
+        .time-label .valid-time { color: #9ca3af; font-size: 11px; }
+
+        .error-msg {
+            color: #dc2626;
+            font-size: 13px;
+            padding: 8px 12px;
+            background: #fef2f2;
+            border-radius: 6px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        /* Sidebar toggle button (mobile only) */
+        .sidebar-toggle {
+            display: none;
+            position: absolute;
+            bottom: 64px;
+            right: 12px;
+            z-index: 1001;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        /* ===== Mobile Responsive ===== */
+        @media (max-width: 768px) {
+            body { overflow: hidden; }
+
+            /* Header: wrap into two rows */
+            header {
+                height: auto;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 6px 10px;
+                gap: 6px;
+            }
+            header h1 { font-size: 13px; }
+            .import-bar {
+                margin-left: 0;
+                flex-wrap: wrap;
+                gap: 4px;
+                align-items: center;
+            }
+            .import-bar .btn { padding: 4px 8px; font-size: 11px; }
+            .import-bar > span[style*="color:#d1d5db"] { display: none; }
+            select.batch-select { font-size: 10px; max-width: 110px; padding: 3px 4px; }
+            .toggle-group { flex-shrink: 0; }
+            .toggle-btn { padding: 3px 6px; font-size: 10px; }
+            #fileStatus { width: 100%; font-size: 10px; order: 99; }
+            #clearCacheBtn { padding: 3px 6px; font-size: 10px; }
+
+            /* Main: full width map, sidebar as bottom sheet */
+            main { flex-direction: column; }
+            .tab-content { flex-direction: column; }
+
+            .map-container { flex: 1; min-height: 0; }
+
+            /* Sidebar: bottom sheet */
+            .sidebar {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid #e5e7eb;
+                max-height: 50vh;
+                padding: 10px;
+                display: none;
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                z-index: 1000;
+                box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+            }
+            .sidebar.mobile-show { display: block; }
+
+            /* Show floating toggle button */
+            .sidebar-toggle { display: flex; }
+
+            /* Footer: compact */
+            footer {
+                padding: 0 8px;
+                gap: 6px;
+                height: 46px;
+            }
+            .time-btn { width: 26px; height: 26px; font-size: 10px; }
+            .time-btn.play-btn { width: 30px; height: 30px; font-size: 12px; }
+            #timeSlider { height: 5px; }
+            #timeSlider::-webkit-slider-thumb { width: 14px; height: 14px; }
+            .time-label { min-width: 90px; font-size: 10px; text-align: right; }
+            .time-label .lead-time { font-size: 11px; }
+            .time-label .valid-time { font-size: 9px; }
+
+            /* Charts: compact */
+            .chart-container { height: 110px; }
+            .stats-grid { gap: 4px; }
+            .stat-item { padding: 5px 7px; }
+            .stat-value { font-size: 12px; }
+            .stat-label { font-size: 9px; }
+            .panel { margin-bottom: 10px; }
+            .panel-title { font-size: 10px; margin-bottom: 4px; }
+            .chart-title { font-size: 11px; }
+            .legend { font-size: 9px; gap: 6px; }
+
+            /* Drop zone */
+            .drop-zone { margin: 12px; border-radius: 10px; }
+            .drop-content .upload-icon { font-size: 36px; margin-bottom: 10px; }
+            .drop-content h2 { font-size: 15px; }
+            .drop-content p { font-size: 12px; }
+            .drop-content .hint { font-size: 11px; }
+
+            /* Leaflet controls: bigger touch targets */
+            .leaflet-control-zoom a { width: 32px; height: 32px; line-height: 32px; font-size: 16px; }
+            .leaflet-bar { border: none !important; }
+        }
+
+        @media (max-width: 400px) {
+            header h1 { font-size: 12px; }
+            .import-bar .btn { padding: 3px 6px; font-size: 10px; }
+            select.batch-select { max-width: 90px; font-size: 9px; }
+            .toggle-btn { padding: 3px 5px; font-size: 9px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span class="icon">🌀</span>老橘子台风追踪系统</h1>
+        <span id="typhoonName" onclick="editTyphoonName()" title="点击编辑台风名称">--</span>
+        <div class="import-bar">
+            <input type="file" id="fileInput" multiple accept=".csv" style="display:none;">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入 CSV</button>
+            <span style="color:#d1d5db;">|</span>
+            <select id="batchSelect" class="batch-select" onchange="onBatchChange()"></select>
+            <select id="sourceSelect" class="batch-select" title="下载源">
+                <option value="auto">自动</option>
+                <option value="mirror">GitHub镜像</option>
+                <option value="google">Google直连</option>
+            </select>
+            <button id="fetchBtn" class="btn btn-success" onclick="toggleDownload()">⬇ 下载全部并导入</button>
+            <button id="fetchLatestBtn" class="btn btn-primary" onclick="fetchLatestData()">⚡ 下载最新</button>
+            <button id="clearCacheBtn" class="btn btn-sm" onclick="clearCache()" title="清除本地缓存的CSV文件">🗑 清缓存</button>
+            <span style="color:#d1d5db;">|</span>
+            <div class="toggle-group" id="viewModeToggle">
+                <button class="toggle-btn active" id="modeEnsemble" onclick="setViewMode('ensemble')">集合预报</button>
+                <button class="toggle-btn" id="modeMean" onclick="setViewMode('mean')">集合平均对比</button>
+            </div>
+            <div class="toggle-group" id="modelToggle">
+                <button class="toggle-btn model-btn fnv3 active" onclick="setModel('FNV3')">FNV3</button>
+                <button class="toggle-btn model-btn genc" onclick="setModel('GENC')">GENC</button>
+            </div>
+            <span id="fileStatus"></span>
+        </div>
+    </header>
+
+    <main>
+        <div id="dropZone" class="drop-zone">
+            <div class="drop-content">
+                <div class="upload-icon">📁</div>
+                <h2>拖拽 CSV 文件到此处</h2>
+                <p>或点击右上角"导入 CSV"按钮选择文件</p>
+                <p class="hint">数据来源: <a href="https://deepmind.google.com/science/weatherlab/" target="_blank" class="format-link">deepmind.google.com/science/weatherlab</a></p>
+                <div id="dropError" class="error-msg"></div>
+            </div>
+        </div>
+
+        <div id="dataView" class="data-view">
+            <div class="view-tabs">
+                <div class="view-tab active" onclick="switchTab('mapView', this)">🗺️ 地图视图</div>
+            </div>
+            <div id="mapView" class="tab-content active">
+                <div class="map-container">
+                    <div id="map"></div>
+                    <button class="sidebar-toggle" onclick="toggleSidebar()" id="sidebarToggle">📊</button>
+                </div>
+                <aside class="sidebar" id="sidebar">
+                <div class="panel">
+                    <div class="panel-title">气旋选择</div>
+                    <select id="trackSelector" class="track-select" onchange="onTrackChange()"></select>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">统计信息</div>
+                    <div id="stats" class="stats-grid"></div>
+                </div>
+                <div class="panel">
+                    <div class="chart-title">最大持续风速 (m/s)</div>
+                    <div class="chart-container">
+                        <canvas id="windChart"></canvas>
+                    </div>
+                    <div class="legend" id="windLegend">
+                        <div class="legend-item"><div class="legend-color" style="background:rgba(100,100,100,0.2);border:1px solid rgba(100,100,100,0.4)"></div>集合成员</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ea4335"></div>FNV3</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#1a73e8"></div>GENC</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#1a73e8;border-radius:50%"></div>当前</div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="chart-title">最低海平面气压 (hPa)</div>
+                    <div class="chart-container">
+                        <canvas id="pressureChart"></canvas>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">风速等级</div>
+                    <div class="legend" style="flex-wrap:wrap;gap:6px;">
+                        <div class="legend-item"><div class="legend-color" style="background:#42a5f5"></div>&lt;17.5m/s 热带低压</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#66bb6a"></div>17.5-32.9m/s 热带风暴</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ffa726"></div>32.9-49.4m/s 台风</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ef5350"></div>49.4m/s+ 强台风</div>
+                    </div>
+                </div>
+            </aside>
+            </div>
+        </div>
+    </main>
+
+    <footer id="timeControls">
+        <button class="time-btn" id="prevBtn" onclick="prevStep()">&#9664;</button>
+        <button class="time-btn play-btn" id="playBtn" onclick="togglePlay()">&#9654;</button>
+        <button class="time-btn" id="nextBtn" onclick="nextStep()">&#9654;</button>
+        <input type="range" id="timeSlider" min="0" max="0" value="0" oninput="onSliderChange()">
+        <div class="time-label" id="timeLabel">
+            <span class="lead-time">T+0h</span><br>
+            <span class="valid-time"></span>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script>
+    // ==================== Global State ====================
+    // Multi-model data storage
+    let modelData = {
+        FNV3: { ensemble: null, ensemble_mean: null },
+        GENC: { ensemble: null, ensemble_mean: null }
+    };
+
+    // ==================== Typhoon Name Resolution ====================
+    // Approach: fetch English name from agora API (via server proxy at /api/typhoon-name),
+    // then look up Chinese name from ENAME_TO_ZH mapping.
+    //
+    // Agora URL: https://agora.ex.nii.ac.jp/digital-typhoon/geojson/wnp/202609.ja.json
+    //   → properties.name field (e.g. "BAVI", "MAYSAK")
+    //   → empty string if unnamed tropical depression
+    //
+    // For unnamed storms: display "2026年第XX号气旋（未命名）"
+    //
+    // To add a new storm: just add { en: 'XXX', zh: 'XXX' } to ENAME_TO_ZH.
+    // The trackId → ename resolution happens at runtime via the API.
+
+    const ENAME_TO_ZH = {
+        // === 2026 typhoons (verified via agora API + 百度百科) ===
+        'NOKAEN':   '洛鞍',
+        'PENHA':    '西望洋',
+        'NURI':     '鹦鹉',
+        'SINLAKU':  '森拉克',
+        'HAGUPIT':  '黑格比',
+        'JANGMI':   '蔷薇',
+        'MEKKHALA': '米克拉',
+        'HIGOS':    '海高斯',
+        'BAVI':     '巴威',
+        'MAYSAK':   '美莎克',
+        // === Reserved future 2026 names (from naming table) ===
+        'HAISHEN':  '海神',
+        'NOUL':      '红霞',
+        'DOLPHIN':  '白海豚',
+        'KUJIRA':   '鲸鱼',
+        'CHANHOM':  '灿鸿',
+        'PEILOU':   '琵鹭',
+        'NANGKA':   '浪卡',
+        'SAUDEL':   '沙德尔',
+        'NARRA':    '紫檀',
+        'GAENARI':  '简拉维',
+        'ATSANI':   '艾莎尼',
+        'ETAU':     '艾涛',
+        'BANGLANG': '班朗',
+        'KROVANH':  '科罗旺',
+        'DUJUAN':   '杜鹃',
+        'SURIGAE':  '舒力基',
+        // === Legacy / other years (for reference) ===
+        'DAMREY':   '达维',
+        'KIROGI':   '鸿雁',
+        'KOINU':    '鸳鸯',
+        'YAGI':     '小犬',
+        'YINXING':  '万宜',
+        'KOTO':     '天秤',
+        'PARU':      '帕布',
+        'PABUK':    '帕布',
+        'MANEI':    '美妮',
+    };
+
+    // Runtime cache: trackId → { ename, zh }
+    const typhoonNameCache = {};
+
+    /**
+     * Fetch English name from server proxy (which calls agora API).
+     * Non-blocking: fetches in background, caches result, updates display.
+     */
+    function fetchTyphoonName(trackId) {
+        if (!trackId) return;
+        if (typhoonNameCache[trackId]) return; // already fetched
+
+        fetch('/api/typhoon-name?track_id=' + encodeURIComponent(trackId))
+            .then(r => r.json())
+            .then(d => {
+                if (d && d.found && d.ename) {
+                    typhoonNameCache[trackId] = {
+                        ename: d.ename,
+                        zh: ENAME_TO_ZH[d.ename] || ''
+                    };
+                } else {
+                    // Not found in API (unnamed or not yet in database)
+                    typhoonNameCache[trackId] = { ename: '', zh: '' };
+                }
+                // Update display if this is the current track
+                if (trackId === currentTrackId) updateTyphoonNameDisplay();
+            })
+            .catch(() => {
+                typhoonNameCache[trackId] = { ename: '', zh: '' };
+            });
+    }
+
+    /**
+     * Get display name for a track.
+     * Priority: localStorage > API-fetched name > ENAME_TO_ZH > fallback text.
+     */
+    function getTyphoonDisplayName(trackId) {
+        if (!trackId) return '未识别台风';
+
+        // 1. User-customized name (localStorage)
+        try {
+            const saved = localStorage.getItem('typhoon_name_' + trackId);
+            if (saved) return saved;
+        } catch(e) {}
+
+        // 2. API-fetched name (via fetchTyphoonName)
+        if (typhoonNameCache[trackId]) {
+            const { ename, zh } = typhoonNameCache[trackId];
+            if (zh) return zh + ' (' + capitalize(ename) + ')';
+            if (ename && ENAME_TO_ZH[ename]) return ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
+            if (ename) return capitalize(ename);
+        }
+
+        // 3. Try to trigger a fetch (will update display when done)
+        fetchTyphoonName(trackId);
+
+        // 4. Fallback: parse storm number
+        const m = trackId.match(/WP(\d{2})(\d{4})/);
+        if (m) {
+            const stormNum = parseInt(m[1], 10);
+            return m[2] + '年第' + stormNum + '号气旋';
+        }
+        return trackId;
+    }
+
+    function capitalize(s) {
+        if (!s) return '';
+        // Agora returns all-caps like "BAVI" → "Bavi"
+        return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    }
+
+    function updateTyphoonNameDisplay() {
+        const el = document.getElementById('typhoonName');
+        if (!el) return;
+        const name = getTyphoonDisplayName(currentTrackId);
+        el.textContent = '🌀 ' + name;
+        el.title = '点击编辑台风名称（当前: ' + name + '）';
+    }
+
+    function editTyphoonName() {
+        const current = getTyphoonDisplayName(currentTrackId);
+        const input = prompt('请输入台风名称：\n（留空则使用自动识别）', current);
+        if (input === null) return;  // cancelled
+        if (input.trim() === '') {
+            try { localStorage.removeItem('typhoon_name_' + currentTrackId); } catch(e) {}
+        } else {
+            try { localStorage.setItem('typhoon_name_' + currentTrackId, input.trim()); } catch(e) {}
+        }
+        updateTyphoonNameDisplay();
+        if (hasAnyData()) updateTimeStep();
+    }
+
+    let currentViewMode = 'ensemble';  // 'ensemble' or 'mean'
+    let currentModel = 'FNV3';          // 'FNV3' or 'GENC' (for ensemble mode)
+
+    // Active tracks (references that get updated on mode/model switch)
+    let tracks = {};
+    let trackIds = [];
+    let currentTrackId = null;
+    let currentLeadTimeIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    let map = null;
+    let mapLayers = { tracks: [], medianSegments: [], markers: [], initMarker: null };
+    let windChart = null;
+    let pressureChart = null;
+    let downloadAbortController = null;
+
+    const MODEL_COLORS = {
+        FNV3: '#ea4335',
+        GENC: '#1a73e8'
+    };
+
+    // ==================== Utilities ====================
+    function parseLeadTime(val) {
+        if (val == null) return 0;
+        if (typeof val === 'number') return val;
+        const str = String(val).trim();
+        let m = str.match(/(\d+)\s*days?\s+(\d{1,2}):(\d{2})/);
+        if (m) return parseInt(m[1]) * 24 + parseInt(m[2]);
+        m = str.match(/(\d+)\s*d\s+(\d{1,2}):(\d{2})/);
+        if (m) return parseInt(m[1]) * 24 + parseInt(m[2]);
+        m = str.match(/(\d+)d(\d{1,2}):(\d{2})/);
+        if (m) return parseInt(m[1]) * 24 + parseInt(m[2]);
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+    }
+
+    function getWindColor(ms) {
+        if (ms == null || isNaN(ms)) return '#9ca3af';
+        if (ms < 17.5) return '#42a5f5';
+        if (ms < 32.9) return '#66bb6a';
+        if (ms < 49.4) return '#ffa726';
+        return '#ef5350';
+    }
+
+    function ktToMs(kt) {
+        return kt == null || isNaN(kt) ? null : Math.round(kt * 0.5144 * 10) / 10;
+    }
+
+    function median(arr) {
+        const valid = arr.filter(v => v != null && !isNaN(v));
+        if (valid.length === 0) return null;
+        const sorted = [...valid].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    function fmtTime(str) {
+        if (!str) return '--';
+        const d = new Date(str + 'Z');
+        if (isNaN(d)) {
+            const d2 = new Date(str);
+            if (isNaN(d2)) return str;
+            const bj = d2.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' });
+            const utc = d2.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+            return bj + '（' + utc + ' UTC）';
+        }
+        const bj = d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' });
+        const utc = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+        return bj + '（' + utc + ' UTC）';
+    }
+
+    // ==================== File Import ====================
+    function handleFiles(files) {
+        let pending = files.length;
+        const errors = [];
+        Array.from(files).forEach(file => {
+            const fname = file.name;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    parseCSVText(e.target.result, fname);
+                } catch(err) {
+                    errors.push(fname + ': ' + err.message);
+                }
+                pending--;
+                if (pending === 0) {
+                    if (errors.length > 0) {
+                        showDropError(errors.join('; '));
+                    }
+                    if (hasAnyData()) activateDataView();
+                }
+            };
+            reader.onerror = function() {
+                errors.push(fname + ': 读取失败');
+                pending--;
+                if (pending === 0) {
+                    showDropError(errors.join('; '));
+                    if (hasAnyData()) activateDataView();
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    function parseCSVText(csvText, filename) {
+        let model = 'FNV3', type = 'ensemble';
+        if (filename.startsWith('GENC')) model = 'GENC';
+        else if (filename.startsWith('FNV3')) model = 'FNV3';
+        if (filename.includes('_mean_')) type = 'ensemble_mean';
+
+        const results = Papa.parse(csvText, {
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            comments: "#"
+        });
+
+        processData(results.data, model, type);
+    }
+
+    function showDropError(msg) {
+        const el = document.getElementById('dropError');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    // ==================== Data Processing ====================
+    function processData(rawRows, model, type) {
+        if (!rawRows || rawRows.length === 0) throw new Error('无数据');
+
+        const first = rawRows[0];
+        const required = ['track_id', 'sample', 'lat', 'lon'];
+        for (const col of required) {
+            if (!(col in first)) throw new Error('缺少必要列: ' + col);
+        }
+
+        const newTracks = {};
+        const newTrackIds = [];
+
+        rawRows.forEach(row => {
+            const tid = String(row.track_id || '').trim();
+            if (!tid) return;
+            const sid = parseInt(row.sample);
+            const lt = (row.lead_time_hours != null && !isNaN(row.lead_time_hours))
+                ? Number(row.lead_time_hours)
+                : parseLeadTime(row.lead_time);
+
+            if (!newTracks[tid]) {
+                newTracks[tid] = {
+                    initTime: row.init_time,
+                    samples: {},
+                    sampleIds: [],
+                    leadTimes: []
+                };
+                newTrackIds.push(tid);
+            }
+
+            if (!newTracks[tid].samples[sid]) {
+                newTracks[tid].samples[sid] = [];
+                newTracks[tid].sampleIds.push(sid);
+            }
+
+            newTracks[tid].samples[sid].push({
+                lat: row.lat,
+                lon: row.lon,
+                wind: ktToMs(row.maximum_sustained_wind_speed_knots),
+                pressure: row.minimum_sea_level_pressure_hpa,
+                rmw: row.radius_of_maximum_winds_km,
+                leadTimeHours: lt,
+                validTime: row.valid_time,
+                r34: [row.radius_34_knot_winds_ne_km, row.radius_34_knot_winds_se_km, row.radius_34_knot_winds_sw_km, row.radius_34_knot_winds_nw_km],
+                r50: [row.radius_50_knot_winds_ne_km, row.radius_50_knot_winds_se_km, row.radius_50_knot_winds_sw_km, row.radius_50_knot_winds_nw_km],
+                r64: [row.radius_64_knot_winds_ne_km, row.radius_64_knot_winds_se_km, row.radius_64_knot_winds_sw_km, row.radius_64_knot_winds_nw_km]
+            });
+
+            if (!newTracks[tid].leadTimes.includes(lt)) {
+                newTracks[tid].leadTimes.push(lt);
+            }
+        });
+
+        newTrackIds.forEach(tid => {
+            newTracks[tid].sampleIds.sort((a, b) => a - b);
+            newTracks[tid].leadTimes.sort((a, b) => a - b);
+            newTracks[tid].sampleIds.forEach(sid => {
+                newTracks[tid].samples[sid].sort((a, b) => a.leadTimeHours - b.leadTimeHours);
+            });
+        });
+
+        if (newTrackIds.length === 0) throw new Error('无有效气旋数据');
+
+        // Store in modelData
+        modelData[model][type] = { tracks: newTracks, trackIds: newTrackIds };
+    }
+
+    function hasAnyData() {
+        return Object.values(modelData).some(m => m.ensemble || m.ensemble_mean);
+    }
+
+    function hasEnsembleData() {
+        return modelData.FNV3.ensemble || modelData.GENC.ensemble;
+    }
+
+    function hasMeanData() {
+        return modelData.FNV3.ensemble_mean || modelData.GENC.ensemble_mean;
+    }
+
+    function activateDataView() {
+        document.getElementById('dropZone').style.display = 'none';
+        document.getElementById('dataView').classList.add('active');
+        document.getElementById('timeControls').classList.add('active');
+
+        // Decide default view mode - 默认集合平均对比
+        if (hasMeanData()) {
+            currentViewMode = 'mean';
+        } else {
+            currentViewMode = 'ensemble';
+        }
+
+        // Decide default model for ensemble mode
+        if (!modelData[currentModel].ensemble) {
+            currentModel = modelData.GENC.ensemble ? 'GENC' : 'FNV3';
+        }
+
+        updateViewModeUI();
+
+        if (!map) {
+            map = L.map('map', { zoomControl: true, attributionControl: true }).setView([20, 140], 4);
+            // 高德地图底图（国内访问快，中文标注）
+            const normalLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+                subdomains: ['1', '2', '3', '4'],
+                attribution: '&copy; 高德地图',
+                maxZoom: 18
+            });
+            const satelliteLayer = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+                subdomains: ['1', '2', '3', '4'],
+                attribution: '&copy; 高德地图(卫星)',
+                maxZoom: 18
+            });
+            normalLayer.addTo(map);
+            L.control.layers({ '标准地图': normalLayer, '卫星地图': satelliteLayer }, null, { position: 'topright' }).addTo(map);
+        }
+        setTimeout(() => map.invalidateSize(), 100);
+
+        updateActiveData();
+        populateTrackSelector();
+        currentLeadTimeIndex = 0;
+        renderAll();
+    }
+
+    function updateViewModeUI() {
+        const modeEnsemble = document.getElementById('modeEnsemble');
+        const modeMean = document.getElementById('modeMean');
+        const modelToggle = document.getElementById('modelToggle');
+        const windLegend = document.getElementById('windLegend');
+
+        modeEnsemble.disabled = !hasEnsembleData();
+        modeMean.disabled = !hasMeanData();
+
+        if (currentViewMode === 'ensemble') {
+            modeEnsemble.classList.add('active');
+            modeMean.classList.remove('active');
+            modelToggle.style.display = 'flex';
+            // Update model buttons
+            document.querySelector('.toggle-btn.model-btn.fnv3').classList.toggle('active', currentModel === 'FNV3');
+            document.querySelector('.toggle-btn.model-btn.genc').classList.toggle('active', currentModel === 'GENC');
+            document.querySelector('.toggle-btn.model-btn.fnv3').disabled = !modelData.FNV3.ensemble;
+            document.querySelector('.toggle-btn.model-btn.genc').disabled = !modelData.GENC.ensemble;
+            windLegend.style.display = '';
+        } else {
+            modeMean.classList.add('active');
+            modeEnsemble.classList.remove('active');
+            modelToggle.style.display = 'none';
+            windLegend.style.display = '';
+        }
+    }
+
+    function setViewMode(mode) {
+        if (mode === 'ensemble' && !hasEnsembleData()) return;
+        if (mode === 'mean' && !hasMeanData()) return;
+        currentViewMode = mode;
+        updateViewModeUI();
+        updateActiveData();
+        populateTrackSelector();
+        currentLeadTimeIndex = 0;
+        if (isPlaying) togglePlay();
+        renderAll();
+    }
+
+    function setModel(model) {
+        if (!modelData[model].ensemble) return;
+        currentModel = model;
+        updateViewModeUI();
+        updateActiveData();
+        populateTrackSelector();
+        currentLeadTimeIndex = 0;
+        if (isPlaying) togglePlay();
+        renderAll();
+    }
+
+    function updateActiveData() {
+        if (currentViewMode === 'ensemble') {
+            const data = modelData[currentModel].ensemble;
+            tracks = data ? data.tracks : {};
+            trackIds = data ? data.trackIds : [];
+        } else {
+            // Mean mode: use FNV3 as primary, GENC as secondary
+            const primary = modelData.FNV3.ensemble_mean || modelData.GENC.ensemble_mean;
+            tracks = primary ? primary.tracks : {};
+            trackIds = primary ? primary.trackIds : [];
+        }
+    }
+
+    function getSecondaryMeanTracks() {
+        if (currentViewMode !== 'mean') return null;
+        // If primary is FNV3, secondary is GENC, and vice versa
+        if (modelData.FNV3.ensemble_mean && modelData.GENC.ensemble_mean) {
+            return modelData.GENC.ensemble_mean.tracks;
+        }
+        return null;
+    }
+
+    function getPrimaryMeanModel() {
+        if (modelData.FNV3.ensemble_mean) return 'FNV3';
+        if (modelData.GENC.ensemble_mean) return 'GENC';
+        return 'FNV3';
+    }
+
+    function getSecondaryMeanModel() {
+        const primary = getPrimaryMeanModel();
+        if (primary === 'FNV3' && modelData.GENC.ensemble_mean) return 'GENC';
+        if (primary === 'GENC' && modelData.FNV3.ensemble_mean) return 'FNV3';
+        return null;
+    }
+
+    function populateTrackSelector() {
+        const selector = document.getElementById('trackSelector');
+        selector.innerHTML = '';
+        trackIds.forEach(tid => {
+            const opt = document.createElement('option');
+            opt.value = tid;
+            opt.textContent = getTyphoonDisplayName(tid);
+            selector.appendChild(opt);
+        });
+        if (trackIds.length > 0) currentTrackId = trackIds[0];
+        updateTyphoonNameDisplay();
+    }
+
+    // ==================== Map Rendering ====================
+    function clearMapLayers() {
+        mapLayers.tracks.forEach(l => map.removeLayer(l));
+        mapLayers.medianSegments.forEach(l => map.removeLayer(l));
+        mapLayers.markers.forEach(l => map.removeLayer(l));
+        if (mapLayers.initMarker) map.removeLayer(mapLayers.initMarker);
+        mapLayers = { tracks: [], medianSegments: [], markers: [], initMarker: null };
+    }
+
+    function renderMap() {
+        clearMapLayers();
+        const track = tracks[currentTrackId];
+        if (!track) return;
+
+        // Compute median for primary track
+        const medianPoints = computeMedian(track);
+        track.median = medianPoints;
+
+        if (currentViewMode === 'ensemble') {
+            renderEnsembleMap(track, medianPoints, MODEL_COLORS[currentModel]);
+        } else {
+            // Mean comparison mode
+            renderMeanComparisonMap(track, medianPoints);
+        }
+
+        // Fit bounds
+        const allLatLngs = track.sampleIds.flatMap(sid => track.samples[sid].map(p => [p.lat, p.lon]));
+        const secTracks = getSecondaryMeanTracks();
+        if (secTracks && secTracks[currentTrackId]) {
+            const secTrack = secTracks[currentTrackId];
+            allLatLngs.push(...secTrack.sampleIds.flatMap(sid => secTrack.samples[sid].map(p => [p.lat, p.lon])));
+        }
+        if (allLatLngs.length > 0) {
+            map.fitBounds(L.latLngBounds(allLatLngs), { padding: [50, 50] });
+        }
+
+        updateMapMarkers();
+    }
+
+    function computeMedian(track) {
+        return track.leadTimes.map(lt => {
+            const pts = track.sampleIds
+                .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+                .filter(p => p);
+            if (pts.length === 0) return null;
+            return {
+                lat: median(pts.map(p => p.lat)),
+                lon: median(pts.map(p => p.lon)),
+                wind: median(pts.map(p => p.wind)),
+                pressure: median(pts.map(p => p.pressure)),
+                leadTimeHours: lt
+            };
+        }).filter(p => p && p.lat != null && p.lon != null);
+    }
+
+    function renderEnsembleMap(track, medianPoints, color) {
+        // Draw ensemble member tracks
+        track.sampleIds.forEach(sid => {
+            const points = track.samples[sid];
+            if (points.length < 1) return;
+            const latlngs = points.map(p => [p.lat, p.lon]);
+            const maxWind = Math.max(...points.map(p => p.wind || 0));
+            const c = getWindColor(maxWind);
+
+            if (latlngs.length >= 2) {
+                const polyline = L.polyline(latlngs, {
+                    color: c, weight: 1.5, opacity: 0.18, smoothFactor: 1
+                }).addTo(map);
+                mapLayers.tracks.push(polyline);
+            }
+        });
+
+        // Draw median track with colored segments
+        drawMedianTrack(medianPoints, color, 3.5, 0.85);
+
+        // Initial position marker
+        if (medianPoints.length > 0) {
+            const initPt = medianPoints[0];
+            const icon = L.divIcon({
+                html: '<div style="font-size:18px;text-align:center;line-height:24px;color:' + color + ';filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));">&#9733;</div>',
+                className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+            });
+            mapLayers.initMarker = L.marker([initPt.lat, initPt.lon], { icon: icon })
+                .bindTooltip('初始位置: ' + (getTyphoonDisplayName(currentTrackId) || currentTrackId), { permanent: false })
+                .addTo(map);
+        }
+    }
+
+    function renderMeanComparisonMap(track, medianPoints) {
+        const primModel = getPrimaryMeanModel();
+        const secModel = getSecondaryMeanModel();
+        const secTracks = getSecondaryMeanTracks();
+
+        // Draw primary model track (no ensemble members for mean data, just the track)
+        drawMedianTrack(medianPoints, MODEL_COLORS[primModel], 4, 0.9);
+
+        // Draw secondary model track
+        if (secTracks && secTracks[currentTrackId]) {
+            const secTrack = secTracks[currentTrackId];
+            const secMedian = computeMedian(secTrack);
+            secTrack.median = secMedian;
+            drawMedianTrack(secMedian, MODEL_COLORS[secModel], 4, 0.9);
+        }
+
+        // Initial position markers
+        if (medianPoints.length > 0) {
+            const initPt = medianPoints[0];
+            const icon = L.divIcon({
+                html: '<div style="font-size:18px;text-align:center;line-height:24px;color:' + MODEL_COLORS[primModel] + ';filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));">&#9733;</div>',
+                className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+            });
+            mapLayers.initMarker = L.marker([initPt.lat, initPt.lon], { icon: icon })
+                .bindTooltip((getTyphoonDisplayName(currentTrackId) || primModel) + ' 初始位置', { permanent: false })
+                .addTo(map);
+        }
+    }
+
+    function drawMedianTrack(medianPoints, color, weight, opacity) {
+        for (let i = 0; i < medianPoints.length - 1; i++) {
+            const p1 = medianPoints[i];
+            const p2 = medianPoints[i + 1];
+            const avgWind = (p1.wind + p2.wind) / 2;
+            const segColor = getWindColor(avgWind);
+            const seg = L.polyline([[p1.lat, p1.lon], [p2.lat, p2.lon]], {
+                color: segColor, weight: weight, opacity: opacity
+            }).addTo(map);
+            mapLayers.medianSegments.push(seg);
+        }
+    }
+
+    function updateMapMarkers() {
+        mapLayers.markers.forEach(m => map.removeLayer(m));
+        mapLayers.markers = [];
+
+        const track = tracks[currentTrackId];
+        if (!track || !track.median) return;
+        const leadTime = track.leadTimes[currentLeadTimeIndex];
+
+        // Primary marker
+        const medianPoint = track.median.find(p => p.leadTimeHours === leadTime);
+        if (medianPoint) {
+            const primModel = currentViewMode === 'mean' ? getPrimaryMeanModel() : currentModel;
+            addMapMarker(medianPoint, track, MODEL_COLORS[primModel], primModel);
+        }
+
+        // Secondary marker (mean comparison mode)
+        if (currentViewMode === 'mean') {
+            const secModel = getSecondaryMeanModel();
+            const secTracks = getSecondaryMeanTracks();
+            if (secTracks && secTracks[currentTrackId]) {
+                const secTrack = secTracks[currentTrackId];
+                if (secTrack.median) {
+                    // Find matching lead time (may have different lead times)
+                    const secLeadTime = findClosestLeadTime(secTrack.leadTimes, leadTime);
+                    const secPoint = secTrack.median.find(p => p.leadTimeHours === secLeadTime);
+                    if (secPoint) {
+                        addMapMarker(secPoint, secTrack, MODEL_COLORS[secModel], secModel);
+                    }
+                }
+            }
+        }
+    }
+
+    function findClosestLeadTime(leadTimes, target) {
+        if (!leadTimes || leadTimes.length === 0) return target;
+        let closest = leadTimes[0];
+        let minDiff = Math.abs(closest - target);
+        for (const lt of leadTimes) {
+            const diff = Math.abs(lt - target);
+            if (diff < minDiff) { minDiff = diff; closest = lt; }
+        }
+        return closest;
+    }
+
+    function addMapMarker(point, track, color, modelLabel) {
+        const windColor = getWindColor(point.wind);
+        const radius = Math.max(5, Math.min(10, (point.wind || 0) / 6));
+
+        const marker = L.circleMarker([point.lat, point.lon], {
+            radius: radius,
+            fillColor: windColor,
+            color: color,
+            weight: 2.5,
+            fillOpacity: 0.8
+        }).addTo(map);
+
+        // Compute valid time (Beijing)
+        const initDate = new Date(track.initTime.replace(' ', 'T') + 'Z');
+        const validMs = initDate.getTime() + point.leadTimeHours * 3600000;
+        const bjDate = new Date(validMs + 8 * 3600000);
+        const mm = String(bjDate.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(bjDate.getUTCDate()).padStart(2, '0');
+        const hh = String(bjDate.getUTCHours()).padStart(2, '0');
+        const min = String(bjDate.getUTCMinutes()).padStart(2, '0');
+        const validTimeStr = `${mm}-${dd} ${hh}:${min} CST`;
+
+        marker.bindTooltip(
+            `<div style="font-size:13px;line-height:1.5;">
+                <div><b>${getTyphoonDisplayName(currentTrackId) ? getTyphoonDisplayName(currentTrackId) + ' · ' : ''}${modelLabel}</b> ${validTimeStr}</div>
+                <div>风速 ${(point.wind || 0).toFixed(1)} m/s</div>
+                <div>气压 ${point.pressure || '--'} hPa</div>
+            </div>`,
+            { direction: 'top', offset: [0, -radius - 2], className: 'typhoon-tooltip' }
+        );
+
+        // Draggable + wheel
+        const markerEl = marker.getElement();
+        if (!markerEl) { mapLayers.markers.push(marker); return; }
+        markerEl.style.cursor = 'grab';
+
+        L.DomEvent.on(markerEl, 'wheel', function(e) {
+            L.DomEvent.stop(e);
+            L.DomEvent.preventDefault(e);
+            if (e.deltaY < 0) {
+                if (currentLeadTimeIndex > 0) { currentLeadTimeIndex--; updateTimeStep(); }
+            } else {
+                if (currentLeadTimeIndex < track.leadTimes.length - 1) { currentLeadTimeIndex++; updateTimeStep(); }
+            }
+        });
+
+        L.DomEvent.on(markerEl, 'mousedown', function(e) {
+            L.DomEvent.stop(e);
+            L.DomEvent.preventDefault(e);
+            markerEl.style.cursor = 'grabbing';
+            map.dragging.disable();
+
+            function onMove(ev) {
+                const mouseLatLng = map.mouseEventToLatLng(ev);
+                let minDist = Infinity, nearestIdx = currentLeadTimeIndex;
+                track.median.forEach((p, idx) => {
+                    const d = map.latLngToLayerPoint(L.latLng(p.lat, p.lon))
+                        .distanceTo(map.latLngToLayerPoint(mouseLatLng));
+                    if (d < minDist) { minDist = d; nearestIdx = idx; }
+                });
+                if (nearestIdx !== currentLeadTimeIndex) {
+                    currentLeadTimeIndex = nearestIdx;
+                    updateTimeStep();
+                }
+            }
+            function onUp() {
+                markerEl.style.cursor = 'grab';
+                map.dragging.enable();
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        mapLayers.markers.push(marker);
+    }
+
+    // ==================== Chart Rendering ====================
+    function renderCharts() {
+        const track = tracks[currentTrackId];
+        if (!track) return;
+
+        if (windChart) windChart.destroy();
+        if (pressureChart) pressureChart.destroy();
+
+        const windDatasets = [];
+        const pressureDatasets = [];
+
+        if (currentViewMode === 'ensemble') {
+            // Ensemble member datasets
+            track.sampleIds.forEach(sid => {
+                const pts = track.samples[sid];
+                windDatasets.push({
+                    label: 'Member ' + sid,
+                    data: pts.map(p => ({ x: p.leadTimeHours, y: p.wind })),
+                    borderColor: 'rgba(100,100,100,0.1)',
+                    borderWidth: 1, pointRadius: 0, fill: false, tension: 0.3
+                });
+                pressureDatasets.push({
+                    label: 'Member ' + sid,
+                    data: pts.map(p => ({ x: p.leadTimeHours, y: p.pressure })),
+                    borderColor: 'rgba(100,100,100,0.1)',
+                    borderWidth: 1, pointRadius: 0, fill: false, tension: 0.3
+                });
+            });
+
+            // Median line
+            const medianWind = track.leadTimes.map(lt => {
+                const vals = track.sampleIds
+                    .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+                    .filter(p => p && p.wind != null).map(p => p.wind);
+                const m = median(vals);
+                return m != null ? { x: lt, y: m } : null;
+            }).filter(d => d);
+
+            const medianPressure = track.leadTimes.map(lt => {
+                const vals = track.sampleIds
+                    .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+                    .filter(p => p && p.pressure != null).map(p => p.pressure);
+                const m = median(vals);
+                return m != null ? { x: lt, y: m } : null;
+            }).filter(d => d);
+
+            windDatasets.push({
+                label: currentModel + ' 中位数',
+                data: medianWind,
+                borderColor: MODEL_COLORS[currentModel],
+                borderWidth: 2.5, pointRadius: 1,
+                pointBackgroundColor: MODEL_COLORS[currentModel],
+                fill: false, tension: 0.3
+            });
+            pressureDatasets.push({
+                label: currentModel + ' 中位数',
+                data: medianPressure,
+                borderColor: MODEL_COLORS[currentModel],
+                borderWidth: 2.5, pointRadius: 1,
+                pointBackgroundColor: MODEL_COLORS[currentModel],
+                fill: false, tension: 0.3
+            });
+        } else {
+            // Mean comparison mode - draw both models
+            const primModel = getPrimaryMeanModel();
+            const secModel = getSecondaryMeanModel();
+
+            // Primary model line
+            const primMedianWind = track.leadTimes.map(lt => {
+                const pts = track.sampleIds
+                    .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+                    .filter(p => p && p.wind != null);
+                const m = median(pts.map(p => p.wind));
+                return m != null ? { x: lt, y: m } : null;
+            }).filter(d => d);
+
+            const primMedianPressure = track.leadTimes.map(lt => {
+                const pts = track.sampleIds
+                    .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+                    .filter(p => p && p.pressure != null);
+                const m = median(pts.map(p => p.pressure));
+                return m != null ? { x: lt, y: m } : null;
+            }).filter(d => d);
+
+            windDatasets.push({
+                label: primModel,
+                data: primMedianWind,
+                borderColor: MODEL_COLORS[primModel],
+                borderWidth: 2.5, pointRadius: 1,
+                pointBackgroundColor: MODEL_COLORS[primModel],
+                fill: false, tension: 0.3
+            });
+            pressureDatasets.push({
+                label: primModel,
+                data: primMedianPressure,
+                borderColor: MODEL_COLORS[primModel],
+                borderWidth: 2.5, pointRadius: 1,
+                pointBackgroundColor: MODEL_COLORS[primModel],
+                fill: false, tension: 0.3
+            });
+
+            // Secondary model line
+            const secTracks = getSecondaryMeanTracks();
+            if (secTracks && secTracks[currentTrackId] && secModel) {
+                const secTrack = secTracks[currentTrackId];
+                const secMedianWind = secTrack.leadTimes.map(lt => {
+                    const pts = secTrack.sampleIds
+                        .map(sid => secTrack.samples[sid].find(p => p.leadTimeHours === lt))
+                        .filter(p => p && p.wind != null);
+                    const m = median(pts.map(p => p.wind));
+                    return m != null ? { x: lt, y: m } : null;
+                }).filter(d => d);
+
+                const secMedianPressure = secTrack.leadTimes.map(lt => {
+                    const pts = secTrack.sampleIds
+                        .map(sid => secTrack.samples[sid].find(p => p.leadTimeHours === lt))
+                        .filter(p => p && p.pressure != null);
+                    const m = median(pts.map(p => p.pressure));
+                    return m != null ? { x: lt, y: m } : null;
+                }).filter(d => d);
+
+                windDatasets.push({
+                    label: secModel,
+                    data: secMedianWind,
+                    borderColor: MODEL_COLORS[secModel],
+                    borderWidth: 2.5, pointRadius: 1,
+                    pointBackgroundColor: MODEL_COLORS[secModel],
+                    fill: false, tension: 0.3
+                });
+                pressureDatasets.push({
+                    label: secModel,
+                    data: secMedianPressure,
+                    borderColor: MODEL_COLORS[secModel],
+                    borderWidth: 2.5, pointRadius: 1,
+                    pointBackgroundColor: MODEL_COLORS[secModel],
+                    fill: false, tension: 0.3
+                });
+            }
+        }
+
+        // Current point marker(s)
+        const currentLt = track.leadTimes[currentLeadTimeIndex];
+        const allMedianWind = windDatasets.filter(d => d.pointRadius > 0);
+        const allMedianPressure = pressureDatasets.filter(d => d.pointRadius > 0);
+
+        allMedianWind.forEach(ds => {
+            const pt = ds.data.find(d => d.x === currentLt);
+            windDatasets.push({
+                label: '当前',
+                data: pt ? [pt] : [],
+                borderColor: ds.borderColor,
+                backgroundColor: ds.borderColor,
+                pointRadius: 4, pointHoverRadius: 9,
+                showLine: false
+            });
+        });
+
+        allMedianPressure.forEach(ds => {
+            const pt = ds.data.find(d => d.x === currentLt);
+            pressureDatasets.push({
+                label: '当前',
+                data: pt ? [pt] : [],
+                borderColor: ds.borderColor,
+                backgroundColor: ds.borderColor,
+                pointRadius: 4, pointHoverRadius: 9,
+                showLine: false
+            });
+        });
+
+        const baseOpts = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 200 },
+            plugins: {
+                legend: { display: currentViewMode === 'mean', position: 'top', labels: { font: { size: 10 } } },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) { return 'T+' + items[0].parsed.x + 'h'; }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: { display: true, text: '预报提前时间 (h)', font: { size: 10 } },
+                    grid: { color: '#f3f4f6' },
+                    ticks: { font: { size: 10 } }
+                }
+            }
+        };
+
+        windChart = new Chart(document.getElementById('windChart'), {
+            type: 'line',
+            data: { datasets: windDatasets },
+            options: {
+                ...baseOpts,
+                scales: {
+                    ...baseOpts.scales,
+                    y: {
+                        title: { display: true, text: '风速 (m/s)', font: { size: 10 } },
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 10 } }
+                    }
+                }
+            }
+        });
+
+        pressureChart = new Chart(document.getElementById('pressureChart'), {
+            type: 'line',
+            data: { datasets: pressureDatasets },
+            options: {
+                ...baseOpts,
+                scales: {
+                    ...baseOpts.scales,
+                    y: {
+                        title: { display: true, text: '气压 (hPa)', font: { size: 10 } },
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 10 } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateChartHighlight() {
+        const track = tracks[currentTrackId];
+        if (!track || !windChart || !pressureChart) return;
+        const currentLt = track.leadTimes[currentLeadTimeIndex];
+
+        // Find median datasets (have pointRadius > 0 and showLine !== false)
+        const wDatasets = windChart.data.datasets;
+        const pDatasets = pressureChart.data.datasets;
+
+        // Median datasets are the ones with pointRadius=1, current points have pointRadius=4
+        const wMedians = wDatasets.filter(d => d.pointRadius === 1);
+        const wCurrents = wDatasets.filter(d => d.pointRadius === 4);
+        wCurrents.forEach((cur, i) => {
+            const med = wMedians[i];
+            if (med) {
+                const pt = med.data.find(d => d.x === currentLt);
+                cur.data = pt ? [pt] : [];
+            }
+        });
+        windChart.update('none');
+
+        const pMedians = pDatasets.filter(d => d.pointRadius === 1);
+        const pCurrents = pDatasets.filter(d => d.pointRadius === 4);
+        pCurrents.forEach((cur, i) => {
+            const med = pMedians[i];
+            if (med) {
+                const pt = med.data.find(d => d.x === currentLt);
+                cur.data = pt ? [pt] : [];
+            }
+        });
+        pressureChart.update('none');
+    }
+
+    // ==================== Stats ====================
+    function updateStats() {
+        const track = tracks[currentTrackId];
+        if (!track) return;
+
+        const allPoints = track.sampleIds.flatMap(sid => track.samples[sid]);
+        const winds = allPoints.map(p => p.wind).filter(v => v != null);
+        const pressures = allPoints.map(p => p.pressure).filter(v => v != null);
+        const initPoint = track.samples[track.sampleIds[0]]?.[0];
+        const maxLeadTime = Math.max(...track.leadTimes);
+
+        let stats;
+        if (currentViewMode === 'mean') {
+            const primModel = getPrimaryMeanModel();
+            const secModel = getSecondaryMeanModel();
+            const secTracks = getSecondaryMeanTracks();
+            const secTrack = secTracks?.[currentTrackId];
+
+            stats = [
+                { label: '台风名称', value: getTyphoonDisplayName(currentTrackId) || currentTrackId },
+                { label: '初始化时间', value: fmtTime(track.initTime) },
+                { label: primModel + ' 初始风速', value: initPoint ? (initPoint.wind ?? '--') + ' m/s' : '--', cls: primModel.toLowerCase() },
+                { label: (secModel || '--') + ' 初始风速', value: secTrack ? (secTrack.samples[secTrack.sampleIds[0]]?.[0]?.wind ?? '--') + ' m/s' : '--', cls: secModel ? secModel.toLowerCase() : '' },
+                { label: primModel + ' 风速范围', value: winds.length ? Math.min(...winds).toFixed(1) + '-' + Math.max(...winds).toFixed(1) + ' m/s' : '--', cls: primModel.toLowerCase() },
+                { label: (secModel || '--') + ' 风速范围', value: secTrack ? (() => {
+                    const sw = secTrack.sampleIds.flatMap(sid => secTrack.samples[sid]).map(p => p.wind).filter(v => v != null);
+                    return sw.length ? Math.min(...sw).toFixed(1) + '-' + Math.max(...sw).toFixed(1) + ' m/s' : '--';
+                })() : '--', cls: secModel ? secModel.toLowerCase() : '' },
+                { label: primModel + ' 气压范围', value: pressures.length ? Math.min(...pressures).toFixed(0) + '-' + Math.max(...pressures).toFixed(0) + ' hPa' : '--', cls: primModel.toLowerCase() },
+                { label: (secModel || '--') + ' 气压范围', value: secTrack ? (() => {
+                    const sp = secTrack.sampleIds.flatMap(sid => secTrack.samples[sid]).map(p => p.pressure).filter(v => v != null);
+                    return sp.length ? Math.min(...sp).toFixed(0) + '-' + Math.max(...sp).toFixed(0) + ' hPa' : '--';
+                })() : '--', cls: secModel ? secModel.toLowerCase() : '' },
+                { label: '预报时长', value: maxLeadTime + 'h (' + (maxLeadTime / 24).toFixed(1) + '天)' },
+                { label: '预报步数', value: track.leadTimes.length + ' 步' }
+            ];
+        } else {
+            stats = [
+                { label: '台风名称', value: getTyphoonDisplayName(currentTrackId) || currentTrackId },
+                { label: '初始化时间', value: fmtTime(track.initTime) },
+                { label: '模型', value: currentModel, cls: currentModel.toLowerCase() },
+                { label: '集合成员数', value: track.sampleIds.length },
+                { label: '初始位置', value: initPoint ? initPoint.lat.toFixed(1) + ', ' + initPoint.lon.toFixed(1) : '--' },
+                { label: '初始风速', value: initPoint ? (initPoint.wind ?? '--') + ' m/s' : '--' },
+                { label: '风速范围', value: winds.length ? Math.min(...winds).toFixed(1) + '-' + Math.max(...winds).toFixed(1) + ' m/s' : '--' },
+                { label: '气压范围', value: pressures.length ? Math.min(...pressures).toFixed(0) + '-' + Math.max(...pressures).toFixed(0) + ' hPa' : '--' },
+                { label: '预报时长', value: maxLeadTime + 'h (' + (maxLeadTime / 24).toFixed(1) + '天)' },
+                { label: '数据点总数', value: allPoints.length }
+            ];
+        }
+
+        const html = stats.map(s =>
+            '<div class="stat-item"><div class="stat-label">' + s.label + '</div><div class="stat-value ' + (s.cls || '') + '">' + s.value + '</div></div>'
+        ).join('');
+        document.getElementById('stats').innerHTML = html;
+    }
+
+    // ==================== Time Controls ====================
+    function setupTimeSlider() {
+        const track = tracks[currentTrackId];
+        const slider = document.getElementById('timeSlider');
+        slider.min = 0;
+        slider.max = track.leadTimes.length - 1;
+        slider.value = currentLeadTimeIndex;
+        updateTimeLabel();
+    }
+
+    function updateTimeLabel() {
+        const track = tracks[currentTrackId];
+        if (!track) return;
+        const lt = track.leadTimes[currentLeadTimeIndex];
+        const label = document.getElementById('timeLabel');
+        const validTime = track.sampleIds
+            .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
+            .find(p => p && p.validTime)?.validTime;
+        label.innerHTML = '<span class="lead-time">T+' + lt + 'h</span><br><span class="valid-time">' + fmtTime(validTime) + '</span>';
+    }
+
+    function updateTimeStep() {
+        updateMapMarkers();
+        updateChartHighlight();
+        updateTimeLabel();
+        document.getElementById('timeSlider').value = currentLeadTimeIndex;
+    }
+
+    function onSliderChange() {
+        currentLeadTimeIndex = parseInt(document.getElementById('timeSlider').value);
+        updateTimeStep();
+    }
+
+    function togglePlay() {
+        const btn = document.getElementById('playBtn');
+        if (isPlaying) {
+            clearInterval(playInterval);
+            isPlaying = false;
+            btn.innerHTML = '&#9654;';
+        } else {
+            isPlaying = true;
+            btn.innerHTML = '&#10074;&#10074;';
+            playInterval = setInterval(() => {
+                const track = tracks[currentTrackId];
+                if (currentLeadTimeIndex < track.leadTimes.length - 1) {
+                    currentLeadTimeIndex++;
+                    updateTimeStep();
+                } else {
+                    clearInterval(playInterval);
+                    isPlaying = false;
+                    btn.innerHTML = '&#9654;';
+                }
+            }, 600);
+        }
+    }
+
+    function nextStep() {
+        const track = tracks[currentTrackId];
+        if (currentLeadTimeIndex < track.leadTimes.length - 1) {
+            currentLeadTimeIndex++;
+            updateTimeStep();
+        }
+    }
+
+    function prevStep() {
+        if (currentLeadTimeIndex > 0) {
+            currentLeadTimeIndex--;
+            updateTimeStep();
+        }
+    }
+
+    // ==================== Track Switching ====================
+    function onTrackChange() {
+        currentTrackId = document.getElementById('trackSelector').value;
+        currentLeadTimeIndex = 0;
+        if (isPlaying) togglePlay();
+        updateTyphoonNameDisplay();
+        renderAll();
+    }
+
+    function renderAll() {
+        renderMap();
+        renderCharts();
+        updateStats();
+        setupTimeSlider();
+        updateTimeStep();
+    }
+
+    // ==================== Auto Fetch ====================
+    let batchList = [];
+
+    async function loadBatchList() {
+        const sel = document.getElementById('batchSelect');
+        sel.innerHTML = '<option>⏳ 加载批次中...</option>';
+        try {
+            const resp = await fetch('/api/latest');
+            if (!resp.ok) throw new Error('API 返回 ' + resp.status);
+            const data = await resp.json();
+            batchList = data.batches || [];
+            sel.innerHTML = '';
+            if (batchList.length === 0) {
+                sel.innerHTML = '<option>无可用批次</option>';
+                return;
+            }
+            batchList.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.init_time;
+                let label = b.beijing_time;
+                if (b.cached) label += ' 📁';
+                if (!b.available) {
+                    opt.disabled = true;
+                    label += ' (未发布)';
+                }
+                opt.textContent = label;
+                sel.appendChild(opt);
+            });
+            const firstAvailable = batchList.find(b => b.available);
+            if (firstAvailable) {
+                sel.value = firstAvailable.init_time;
+            }
+        } catch (e) {
+            console.warn('无法获取批次列表:', e);
+            sel.innerHTML = '<option>⚠ 请通过服务器访问</option>';
+            showDropError('请通过 http://localhost:8090 访问（直接双击 HTML 文件无法使用下载功能）');
+        }
+    }
+
+    function onBatchChange() { /* placeholder */ }
+
+    function toggleSidebar() {
+        const sb = document.getElementById('sidebar');
+        const btn = document.getElementById('sidebarToggle');
+        sb.classList.toggle('mobile-show');
+        if (sb.classList.contains('mobile-show')) {
+            btn.textContent = '✕';
+            btn.style.background = '#6b7280';
+        } else {
+            btn.textContent = '📊';
+            btn.style.background = '#1a73e8';
+            setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+        }
+    }
+
+    async function clearCache() {
+        const btn = document.getElementById('clearCacheBtn');
+        const status = document.getElementById('fileStatus');
+        if (!confirm('确定清除所有本地缓存的CSV文件吗？\n（不影响GitHub上的数据）')) return;
+        btn.disabled = true;
+        btn.textContent = '⏳ 清除中...';
+        try {
+            const resp = await fetch('/api/clear_cache?target=all');
+            const data = await resp.json();
+            status.textContent = `🗑 已清除 ${data.count} 个缓存文件`;
+            btn.textContent = '🗑 清缓存';
+            btn.disabled = false;
+            setTimeout(() => loadBatchList(), 500);
+        } catch (e) {
+            status.textContent = `清除失败: ${e.message}`;
+            btn.textContent = '🗑 清缓存';
+            btn.disabled = false;
+        }
+    }
+
+    async function fetchLatestData() {
+        const btn = document.getElementById('fetchLatestBtn');
+        const status = document.getElementById('fileStatus');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ 查找中...';
+        status.textContent = '正在查找最新可用数据...';
+
+        let latestBatch = null;
+        try {
+            const resp = await fetch('/api/latest_available');
+            const text = await resp.text();
+            let data;
+            try { data = JSON.parse(text); } catch (e) {
+                status.textContent = '❌ 服务器未更新，请先重启 server.py';
+                btn.disabled = false;
+                btn.textContent = '⚡ 下载最新';
+                return;
+            }
+            if (!data.found) {
+                status.textContent = '❌ ' + (data.message || '未找到可用数据');
+                btn.disabled = false;
+                btn.textContent = '⚡ 下载最新';
+                return;
+            }
+            latestBatch = data.init_time;
+            status.textContent = `找到最新数据: ${data.beijing_time}，开始下载...`;
+        } catch (e) {
+            status.textContent = '❌ 查找失败: ' + e.message;
+            btn.disabled = false;
+            btn.textContent = '⚡ 下载最新';
+            return;
+        }
+
+        // 直接从 jsdelivr 下载，绕过服务器代理
+        const downloads = [
+            { model: 'FNV3', type: 'ensemble' },
+            { model: 'FNV3', type: 'ensemble_mean' },
+            { model: 'GENC', type: 'ensemble' },
+            { model: 'GENC', type: 'ensemble_mean' }
+        ];
+        const mirrorBase = 'https://cdn.jsdelivr.net/gh/verychen65/typhoon@main/data';
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        const promises = downloads.map(async (dl) => {
+            const fname = `${dl.model}_${dl.type}_${latestBatch}_paired.csv`;
+            const url = `${mirrorBase}/${fname}`;
+            try {
+                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/4)`;
+                const resp = await fetch(url, { signal: downloadAbortController ? downloadAbortController.signal : undefined });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const csv = await resp.text();
+                if (csv.length < 1000 || csv.trim().startsWith('<')) throw new Error('返回内容无效');
+                parseCSVText(csv, fname);
+                successCount++;
+                status.textContent = `已加载 ${successCount}/${downloads.length}: ${dl.model} ${dl.type} (jsdelivr)`;
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+                failCount++;
+                errors.push(`${dl.model}/${dl.type}: ${e.message}`);
+                // 如果直接下载失败，尝试通过服务器代理下载
+                try {
+                    status.textContent = `通过服务器代理下载 ${dl.model}/${dl.type}...`;
+                    const proxyResp = await fetch(`/api/download?model=${dl.model}&init_time=${encodeURIComponent(latestBatch)}&type=${dl.type}&source=mirror`);
+                    const proxyText = await proxyResp.text();
+                    let proxyData;
+                    try { proxyData = JSON.parse(proxyText); } catch (je) { throw new Error('服务器返回无效: ' + proxyText.substring(0, 100)); }
+                    if (proxyData.error) throw new Error(proxyData.error);
+                    parseCSVText(proxyData.csv, fname);
+                    successCount++;
+                    failCount--;
+                    status.textContent = `已加载 ${successCount}/${downloads.length}: ${dl.model} ${dl.type} (代理)`;
+                } catch (e2) {
+                    if (e2.name === 'AbortError') return;
+                    errors.push(`代理${dl.model}/${dl.type}: ${e2.message}`);
+                }
+            }
+        });
+
+        await Promise.all(promises);
+        downloadAbortController = null;
+        btn.disabled = false;
+        btn.textContent = '⚡ 下载最新';
+        if (successCount > 0) {
+            status.textContent = `✅ 成功 ${successCount} 个文件` + (failCount > 0 ? `，失败 ${failCount} 个` : '');
+            if (hasAnyData()) activateDataView();
+        } else {
+            showDropError('全部下载失败: ' + errors.join('; '));
+            status.textContent = '';
+        }
+    }
+
+    function toggleDownload() {
+        if (downloadAbortController) {
+            downloadAbortController.abort();
+            downloadAbortController = null;
+            const btn = document.getElementById('fetchBtn');
+            const status = document.getElementById('fileStatus');
+            btn.disabled = false;
+            btn.textContent = '⬇ 下载全部并导入';
+            status.textContent = '❌ 已取消下载';
+            return;
+        }
+        fetchAll();
+    }
+
+    async function fetchAll() {
+        const btn = document.getElementById('fetchBtn');
+        const status = document.getElementById('fileStatus');
+        const batch = document.getElementById('batchSelect').value;
+        const source = document.getElementById('sourceSelect').value;
+
+        if (!batch || batch.startsWith('⏳') || batch.startsWith('⚠') || batch.startsWith('无')) {
+            showDropError('未找到可用数据批次');
+            return;
+        }
+        const selected = batchList.find(b => b.init_time === batch);
+        if (selected && !selected.available) {
+            showDropError('该批次数据尚未发布，请选择其他批次');
+            return;
+        }
+
+        downloadAbortController = new AbortController();
+        btn.textContent = '⏹ 取消下载';
+        const sourceLabel = source === 'auto' ? '自动' : (source === 'mirror' ? 'GitHub镜像' : 'Google直连');
+        status.textContent = `正在下载 4 个文件 (${sourceLabel})...`;
+        document.getElementById('dropError').style.display = 'none';
+
+        const downloads = [
+            { model: 'FNV3', type: 'ensemble' },
+            { model: 'FNV3', type: 'ensemble_mean' },
+            { model: 'GENC', type: 'ensemble' },
+            { model: 'GENC', type: 'ensemble_mean' }
+        ];
+
+        let successCount = 0;
+        let failCount = 0;
+        const errors = [];
+
+        const promises = downloads.map(async (dl) => {
+            try {
+                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/4)`;
+                const resp = await fetch(`/api/download?model=${dl.model}&init_time=${encodeURIComponent(batch)}&type=${dl.type}&source=${source}`, { signal: downloadAbortController.signal });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+
+                const fname = `${dl.model}_${dl.type}_${batch}_paired.csv`;
+                parseCSVText(data.csv, fname);
+                successCount++;
+                const sourceTag = data.source === 'local_cache' ? ' (本地缓存)' : (data.source === 'github_mirror' ? ' (镜像)' : (data.source === 'google' ? ' (Google)' : ''));
+                status.textContent = `已加载 ${successCount}/${downloads.length}: ${dl.model} ${dl.type}${sourceTag}`;
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+                failCount++;
+                errors.push(`${dl.model}/${dl.type}: ${e.message}`);
+            }
+        });
+
+        await Promise.all(promises);
+        downloadAbortController = null;
+        finalizeFetch(btn, status, successCount, failCount, errors);
+    }
+
+    function finalizeFetch(btn, status, successCount, failCount, errors) {
+        btn.textContent = '⬇ 下载全部并导入';
+        if (successCount > 0) {
+            status.textContent = `✅ 成功 ${successCount} 个文件` + (failCount > 0 ? `，失败 ${failCount} 个` : '');
+            if (hasAnyData()) activateDataView();
+        } else {
+            if (failCount > 0) {
+                showDropError('全部下载失败: ' + errors.join('; '));
+            }
+            status.textContent = '';
+        }
+    }
+
+    // ==================== Initialization ====================
+    function init() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFiles(e.target.files);
+        });
+
+        loadBatchList();
+        loadCachedData();
+    }
+
+    // ==================== Auto Load Cached ====================
+    async function loadCachedData() {
+        try {
+            const resp = await fetch('/api/cached');
+            const data = await resp.json();
+            if (data.total === 0) return;
+
+            // Find the latest batch that has all 4 files (FNV3+GENC × ensemble+ensemble_mean)
+            const batchCounts = {};
+            data.files.forEach(f => {
+                batchCounts[f.init_time] = (batchCounts[f.init_time] || 0) + 1;
+            });
+            // Prefer batch with all 4 files, otherwise the latest with at least 1
+            let bestBatch = null;
+            for (const b of data.cached_batches) {
+                if (batchCounts[b] >= 4) { bestBatch = b; break; }
+            }
+            if (!bestBatch) bestBatch = data.cached_batches[0];
+            if (!bestBatch) return;
+
+            const status = document.getElementById('fileStatus');
+            status.textContent = `正在加载本地缓存 (${bestBatch})...`;
+
+            // Download each cached file via API (will hit local cache)
+            const batchFiles = data.files.filter(f => f.init_time === bestBatch);
+            for (const f of batchFiles) {
+                try {
+                    const r = await fetch(`/api/download?model=${f.model}&init_time=${f.init_time}&type=${f.type}`);
+                    const d = await r.json();
+                    if (d.csv) {
+                        parseCSVText(d.csv, f.filename);
+                    }
+                } catch (e) { console.warn('缓存加载失败:', f.filename, e); }
+            }
+
+            if (Object.keys(tracks).length > 0) {
+                currentTrackId = Object.keys(tracks)[0];
+                currentLeadTimeIndex = 0;
+                renderAll();
+                status.textContent = `已加载本地缓存: ${bestBatch} (${batchFiles.length}个文件) — 点击「下载全部并导入」获取最新数据`;
+            }
+        } catch (e) {
+            console.warn('无法加载缓存:', e);
+        }
+    }
+
+    window.addEventListener('load', init);
+    </script>
+</body>
+</html>
