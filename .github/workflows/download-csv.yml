@@ -2,8 +2,8 @@ name: Download Typhoon CSV
 
 on:
   schedule:
-    # UTC 00:30, 06:30, 12:30, 18:30 = Beijing 08:30, 14:30, 20:30, 02:30
-    - cron: '30 0,6,12,18 * * *'
+    # Run every 30 minutes to catch data published with delay
+    - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -15,52 +15,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download CSV files
+      - name: Download missing CSV files
         run: |
           mkdir -p data
           MODELS="FNV3 GENC"
           TYPES="ensemble ensemble_mean"
-          # Today's init times in UTC
-          for hour in 00 06 12 18; do
-            DATE=$(date -u +%Y_%m_%dT${hour}_00)
-            for model in $MODELS; do
-              for dtype in $TYPES; do
-                FILE="data/${model}_${dtype}_${DATE}_paired.csv"
-                URL="https://deepmind.google.com/science/weatherlab/download/cyclones/${model}/${dtype}/paired/csv/${model}_${DATE}_paired.csv"
-                echo "Downloading $URL"
-                # Try download, allow failure (data may not be published yet)
-                HTTP_CODE=$(curl -sL -o "$FILE" -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$URL" || true)
-                SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
-                echo "  HTTP $HTTP_CODE, size $SIZE bytes"
-                # Remove if too small (error page) or failed
-                if [ "$SIZE" -lt 1000 ] || [ "$HTTP_CODE" != "200" ]; then
-                  echo "  Skipping (not available or too small)"
-                  rm -f "$FILE"
-                fi
+
+          # Check last 2 days (today and yesterday) for missing data
+          for offset in 0 1; do
+            DATE=$(date -u -d "${offset} days ago" +%Y_%m_%d)
+            for hour in 00 06 12 18; do
+              TIMESTAMP="${DATE}T${hour}_00"
+              for model in $MODELS; do
+                for dtype in $TYPES; do
+                  FILE="data/${model}_${dtype}_${TIMESTAMP}_paired.csv"
+                  # Skip if already exists and large enough
+                  if [ -f "$FILE" ]; then
+                    SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+                    if [ "$SIZE" -ge 1000 ]; then
+                      echo "Exists: $FILE (${SIZE} bytes)"
+                      continue
+                    fi
+                    echo "Too small, re-download: $FILE"
+                    rm -f "$FILE"
+                  fi
+
+                  URL="https://deepmind.google.com/science/weatherlab/download/cyclones/${model}/${dtype}/paired/csv/${model}_${TIMESTAMP}_paired.csv"
+                  echo "Downloading $URL"
+                  HTTP_CODE=$(curl -sL -o "$FILE" -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$URL" || true)
+                  SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+                  if [ "$SIZE" -lt 1000 ] || [ "$HTTP_CODE" != "200" ]; then
+                    echo "  Not available yet (HTTP $HTTP_CODE, size $SIZE)"
+                    rm -f "$FILE"
+                  else
+                    echo "  Downloaded: $FILE (${SIZE} bytes)"
+                  fi
+                done
               done
             done
           done
 
-          # Also download yesterday's 18:00 if missing (for late runs)
-          YDATE=$(date -u -d 'yesterday' +%Y_%m_%dT18_00)
-          for model in $MODELS; do
-            for dtype in $TYPES; do
-              FILE="data/${model}_${dtype}_${YDATE}_paired.csv"
-              if [ ! -f "$FILE" ]; then
-                URL="https://deepmind.google.com/science/weatherlab/download/cyclones/${model}/${dtype}/paired/csv/${model}_${YDATE}_paired.csv"
-                echo "Downloading yesterday $URL"
-                HTTP_CODE=$(curl -sL -o "$FILE" -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$URL" || true)
-                SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
-                if [ "$SIZE" -lt 1000 ] || [ "$HTTP_CODE" != "200" ]; then
-                  rm -f "$FILE"
-                fi
-              fi
-            done
-          done
-
-      - name: Clean old files (keep 7 days)
+      - name: Clean old files (keep 15 days)
         run: |
-          find data/ -name "*.csv" -mtime +7 -delete 2>/dev/null || true
+          find data/ -name "*.csv" -mtime +15 -delete 2>/dev/null || true
 
       - name: Commit and push
         run: |
