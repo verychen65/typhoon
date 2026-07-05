@@ -1,0 +1,24 @@
+# IDE / local
+.workbuddy/
+.codebuddy/
+__pycache__/
+*.pyc
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Scripts
+diagnose.sh
+start.sh
+setup-autostart.sh
+push_to_github.sh
+launcher.py
+init.d/
+
+# Local dev files
+*.command
+*.md
+sample_typhoon_data.csv

@@ -13,6 +13,7 @@
             background: #f0f2f5;
             color: #1f2937;
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -283,6 +284,10 @@
             align-items: center;
             margin-top: 2px;
         }
+        .wind-scale-legend {
+            flex-wrap: wrap;
+            gap: 6px 10px;
+        }
         .legend-item { display: flex; align-items: center; gap: 3px; }
         .legend-color { width: 10px; height: 10px; border-radius: 2px; }
 
@@ -386,11 +391,11 @@
             cursor: pointer;
         }
 
-        /* ===== Mobile Responsive ===== */
-        @media (max-width: 768px) {
+        /* ===== Mobile Responsive (covers tablets and phones) ===== */
+        @media (max-width: 1024px) {
             body { overflow: hidden; }
 
-            /* Header: wrap into two rows */
+            /* Header: compact */
             header {
                 height: auto;
                 flex-direction: column;
@@ -413,42 +418,98 @@
             #fileStatus { width: 100%; font-size: 10px; order: 99; }
             #clearCacheBtn { padding: 3px 6px; font-size: 10px; }
 
-            /* Main: full width map, sidebar as bottom sheet */
+            /* Main: stack vertically */
             main { flex-direction: column; }
             .tab-content { flex-direction: column; }
+            .map-container { flex: 1; min-height: 0; width: 100%; }
 
-            .map-container { flex: 1; min-height: 0; }
-
-            /* Sidebar: bottom sheet */
+            /* Sidebar: right drawer */
             .sidebar {
-                width: 100%;
-                border-left: none;
-                border-top: 1px solid #e5e7eb;
-                max-height: 50vh;
-                padding: 10px;
+                position: fixed;
+                right: 0;
+                top: 0;
+                width: 85%;
+                max-width: 360px;
+                height: 100%;
+                background: #fff;
+                border-left: 1px solid #e5e7eb;
+                box-shadow: -4px 0 12px rgba(0,0,0,0.15);
+                z-index: 1000;
+                padding: 14px;
+                overflow-y: auto;
+                transform: translateX(100%);
+                transition: transform 0.25s ease;
+                display: flex;
+                flex-direction: column;
+            }
+            .sidebar.mobile-show {
+                transform: translateX(0);
+                display: flex;
+            }
+
+            /* Overlay backdrop */
+            .sidebar-overlay {
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.3);
+                z-index: 999;
                 display: none;
-                position: absolute;
+            }
+            .sidebar-overlay.mobile-show { display: block; }
+
+            /* Show floating toggle button */
+            .sidebar-toggle { display: flex; bottom: 56px; }
+
+            /* Footer: fixed at bottom so it's always visible on mobile */
+            footer {
+                position: fixed;
                 bottom: 0;
                 left: 0;
                 right: 0;
-                z-index: 1000;
-                box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
-            }
-            .sidebar.mobile-show { display: block; }
-
-            /* Show floating toggle button */
-            .sidebar-toggle { display: flex; }
-
-            /* Footer: compact */
-            footer {
                 padding: 0 8px;
                 gap: 6px;
                 height: 46px;
+                z-index: 998;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
             }
+            /* Add space for fixed footer at bottom of main */
+            main { padding-bottom: 46px; }
             .time-btn { width: 26px; height: 26px; font-size: 10px; }
             .time-btn.play-btn { width: 30px; height: 30px; font-size: 12px; }
-            #timeSlider { height: 5px; }
-            #timeSlider::-webkit-slider-thumb { width: 14px; height: 14px; }
+            #timeSlider {
+                height: 24px;
+                background: transparent;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+            #timeSlider::-webkit-slider-runnable-track {
+                height: 6px;
+                background: #e5e7eb;
+                border-radius: 3px;
+            }
+            #timeSlider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 28px;
+                height: 28px;
+                background: #1a73e8;
+                border-radius: 50%;
+                margin-top: -11px;
+                border: 3px solid #fff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            }
+            #timeSlider::-moz-range-track {
+                height: 6px;
+                background: #e5e7eb;
+                border-radius: 3px;
+            }
+            #timeSlider::-moz-range-thumb {
+                width: 28px;
+                height: 28px;
+                background: #1a73e8;
+                border-radius: 50%;
+                border: 3px solid #fff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            }
             .time-label { min-width: 90px; font-size: 10px; text-align: right; }
             .time-label .lead-time { font-size: 11px; }
             .time-label .valid-time { font-size: 9px; }
@@ -549,12 +610,7 @@
                     <div class="chart-container">
                         <canvas id="windChart"></canvas>
                     </div>
-                    <div class="legend" id="windLegend">
-                        <div class="legend-item"><div class="legend-color" style="background:rgba(100,100,100,0.2);border:1px solid rgba(100,100,100,0.4)"></div>集合成员</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#ea4335"></div>FNV3</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#1a73e8"></div>GENC</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#1a73e8;border-radius:50%"></div>当前</div>
-                    </div>
+                    <div class="legend" id="windLegend"></div>
                 </div>
                 <div class="panel">
                     <div class="chart-title">最低海平面气压 (hPa)</div>
@@ -564,14 +620,17 @@
                 </div>
                 <div class="panel">
                     <div class="panel-title">风速等级</div>
-                    <div class="legend" style="flex-wrap:wrap;gap:6px;">
-                        <div class="legend-item"><div class="legend-color" style="background:#42a5f5"></div>&lt;17.5m/s 热带低压</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#66bb6a"></div>17.5-32.9m/s 热带风暴</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#ffa726"></div>32.9-49.4m/s 台风</div>
-                        <div class="legend-item"><div class="legend-color" style="background:#ef5350"></div>49.4m/s+ 强台风</div>
+                    <div class="legend wind-scale-legend">
+                        <div class="legend-item"><div class="legend-color" style="background:#42a5f5"></div>热带低压 TD 6~7级 10.8~17.1 m/s</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#66bb6a"></div>热带风暴 TS 8~9级 17.2~24.4 m/s</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ab47bc"></div>强热带风暴 STS 10~11级 24.5~32.6 m/s</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ffa726"></div>台风 TY 12~13级 32.7~41.4 m/s</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#ef5350"></div>强台风 STY 14~15级 41.5~50.9 m/s</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#b71c1c"></div>超强台风 SuperTY ≥16级 ≥51.0 m/s</div>
                     </div>
                 </div>
             </aside>
+            <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
             </div>
         </div>
     </main>
@@ -661,7 +720,8 @@
      */
     function fetchTyphoonName(trackId) {
         if (!trackId) return;
-        if (typhoonNameCache[trackId]) return; // already fetched
+        // Only skip if we already have a valid name (has ename). If previous fetch failed or returned empty, allow retry.
+        if (typhoonNameCache[trackId] && typhoonNameCache[trackId].ename) return;
 
         fetch('/api/typhoon-name?track_id=' + encodeURIComponent(trackId))
             .then(r => r.json())
@@ -675,11 +735,13 @@
                     // Not found in API (unnamed or not yet in database)
                     typhoonNameCache[trackId] = { ename: '', zh: '' };
                 }
-                // Update display if this is the current track
+                // Update display if this is the current track, and refresh selector options
                 if (trackId === currentTrackId) updateTyphoonNameDisplay();
+                populateTrackSelector(); // refresh dropdown text for all tracks
             })
             .catch(() => {
                 typhoonNameCache[trackId] = { ename: '', zh: '' };
+                populateTrackSelector(); // refresh even on error to show fallback consistently
             });
     }
 
@@ -690,21 +752,32 @@
     function getTyphoonDisplayName(trackId) {
         if (!trackId) return '未识别台风';
 
-        // 1. User-customized name (localStorage)
-        try {
-            const saved = localStorage.getItem('typhoon_name_' + trackId);
-            if (saved) return saved;
-        } catch(e) {}
-
-        // 2. API-fetched name (via fetchTyphoonName)
+        // 1. API-fetched name (via fetchTyphoonName)
         if (typhoonNameCache[trackId]) {
             const { ename, zh } = typhoonNameCache[trackId];
-            if (zh) return zh + ' (' + capitalize(ename) + ')';
+            if (zh && ename) return zh + ' (' + capitalize(ename) + ')';
             if (ename && ENAME_TO_ZH[ename]) return ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
             if (ename) return capitalize(ename);
         }
 
-        // 3. Try to trigger a fetch (will update display when done)
+        // 2. 检查 localStorage（用户自定义名称）
+        try {
+            const saved = localStorage.getItem('typhoon_name_' + trackId);
+            if (saved) {
+                // 如果用户保存的是完整格式，直接使用
+                if (saved.includes('(')) return saved;
+                // 用户保存的是纯中文，尝试反查英文名
+                for (const [ename, zh] of Object.entries(ENAME_TO_ZH)) {
+                    if (zh === saved) {
+                        return zh + ' (' + capitalize(ename) + ')';
+                    }
+                }
+                // 找不到英文名，返回用户保存的中文
+                return saved;
+            }
+        } catch(e) {}
+
+        // 3. 尝试触发 API 获取（will update display when done）
         fetchTyphoonName(trackId);
 
         // 4. Fallback: parse storm number
@@ -782,10 +855,44 @@
 
     function getWindColor(ms) {
         if (ms == null || isNaN(ms)) return '#9ca3af';
-        if (ms < 17.5) return '#42a5f5';
-        if (ms < 32.9) return '#66bb6a';
-        if (ms < 49.4) return '#ffa726';
-        return '#ef5350';
+        if (ms < 10.8) return '#9ca3af';       // 无等级（<10.8m/s）
+        if (ms < 17.2) return '#42a5f5';      // 热带低压 TD
+        if (ms < 24.5) return '#66bb6a';      // 热带风暴 TS
+        if (ms < 32.7) return '#ab47bc';      // 强热带风暴 STS
+        if (ms < 41.5) return '#ffa726';      // 台风 TY
+        if (ms < 51.0) return '#ef5350';      // 强台风 STY
+        return '#b71c1c';                     // 超强台风 SuperTY
+    }
+
+    // 蒲福风力等级（Beaufort scale），基于2分钟平均风速
+    function getBeaufortScale(ms) {
+        if (ms == null || isNaN(ms)) return '--';
+        if (ms < 10.8) return '<6级';
+        if (ms < 13.9) return '6级';
+        if (ms < 17.2) return '7级';
+        if (ms < 20.8) return '8级';
+        if (ms < 24.5) return '9级';
+        if (ms < 28.5) return '10级';
+        if (ms < 32.7) return '11级';
+        if (ms < 37.0) return '12级';
+        if (ms < 41.5) return '13级';
+        if (ms < 46.2) return '14级';
+        if (ms < 51.0) return '15级';
+        if (ms < 56.1) return '16级';
+        if (ms < 61.3) return '17级';
+        return '≥17级';
+    }
+
+    // 台风等级名称
+    function getTyphoonLevel(ms) {
+        if (ms == null || isNaN(ms)) return '';
+        if (ms < 10.8) return '';
+        if (ms < 17.2) return '热带低压';
+        if (ms < 24.5) return '热带风暴';
+        if (ms < 32.7) return '强热带风暴';
+        if (ms < 41.5) return '台风';
+        if (ms < 51.0) return '强台风';
+        return '超强台风';
     }
 
     function ktToMs(kt) {
@@ -1011,11 +1118,18 @@
             document.querySelector('.toggle-btn.model-btn.genc').classList.toggle('active', currentModel === 'GENC');
             document.querySelector('.toggle-btn.model-btn.fnv3').disabled = !modelData.FNV3.ensemble;
             document.querySelector('.toggle-btn.model-btn.genc').disabled = !modelData.GENC.ensemble;
+            const modelColor = currentModel === 'FNV3' ? '#ea4335' : '#1a73e8';
+            windLegend.innerHTML =
+                '<div class="legend-item"><div class="legend-color" style="background:rgba(100,100,100,0.2);border:1px solid rgba(100,100,100,0.4)"></div>集合成员</div>' +
+                '<div class="legend-item"><div class="legend-color" style="background:' + modelColor + '"></div>' + currentModel + '</div>';
             windLegend.style.display = '';
         } else {
             modeMean.classList.add('active');
             modeEnsemble.classList.remove('active');
             modelToggle.style.display = 'none';
+            windLegend.innerHTML =
+                '<div class="legend-item"><div class="legend-color" style="background:#ea4335"></div>FNV3</div>' +
+                '<div class="legend-item"><div class="legend-color" style="background:#1a73e8"></div>GENC</div>';
             windLegend.style.display = '';
         }
     }
@@ -1080,14 +1194,22 @@
 
     function populateTrackSelector() {
         const selector = document.getElementById('trackSelector');
+        const previousSelection = currentTrackId;
         selector.innerHTML = '';
         trackIds.forEach(tid => {
             const opt = document.createElement('option');
             opt.value = tid;
-            opt.textContent = getTyphoonDisplayName(tid);
+            const name = getTyphoonDisplayName(tid);
+            opt.textContent = name + '  (' + tid + ')';
             selector.appendChild(opt);
         });
-        if (trackIds.length > 0) currentTrackId = trackIds[0];
+        // 保留之前的选择，如果它仍在列表中
+        if (previousSelection && trackIds.includes(previousSelection)) {
+            currentTrackId = previousSelection;
+            selector.value = previousSelection;
+        } else if (trackIds.length > 0) {
+            currentTrackId = trackIds[0];
+        }
         updateTyphoonNameDisplay();
     }
 
@@ -1176,6 +1298,11 @@
             mapLayers.initMarker = L.marker([initPt.lat, initPt.lon], { icon: icon })
                 .bindTooltip('初始位置: ' + (getTyphoonDisplayName(currentTrackId) || currentTrackId), { permanent: false })
                 .addTo(map);
+            // Make initial position draggable too
+            setTimeout(() => {
+                const initEl = mapLayers.initMarker.getElement();
+                if (initEl) { initEl.style.cursor = 'grab'; bindMarkerDragEvents(initEl, track); }
+            }, 0);
         }
     }
 
@@ -1205,6 +1332,11 @@
             mapLayers.initMarker = L.marker([initPt.lat, initPt.lon], { icon: icon })
                 .bindTooltip((getTyphoonDisplayName(currentTrackId) || primModel) + ' 初始位置', { permanent: false })
                 .addTo(map);
+            // Make initial position draggable too
+            setTimeout(() => {
+                const initEl = mapLayers.initMarker.getElement();
+                if (initEl) { initEl.style.cursor = 'grab'; bindMarkerDragEvents(initEl, track); }
+            }, 0);
         }
     }
 
@@ -1265,9 +1397,199 @@
         return closest;
     }
 
+    // Generic drag handler for both mouse and touch: drag marker along track path
+    // Optimized: pre-compute pixel positions + requestAnimationFrame throttle + lightweight marker move
+    function bindMarkerDragEvents(el, track, marker, modelLabel) {
+        if (!el || !track || !track.median) return;
+        var isMobile = window.matchMedia('(max-width: 1024px)').matches;
+
+        // Wheel zoom on marker
+        L.DomEvent.on(el, 'wheel', function(e) {
+            L.DomEvent.stop(e);
+            L.DomEvent.preventDefault(e);
+            if (e.deltaY < 0) {
+                if (currentLeadTimeIndex > 0) { currentLeadTimeIndex--; updateTimeStep(); }
+            } else {
+                if (currentLeadTimeIndex < track.leadTimes.length - 1) { currentLeadTimeIndex++; updateTimeStep(); }
+            }
+        });
+
+        // Pre-compute pixel positions of all median points (call once at drag start)
+        function precomputePixelPoints() {
+            return track.median.map((p, idx) => {
+                const pt = map.latLngToContainerPoint(L.latLng(p.lat, p.lon));
+                return { x: pt.x, y: pt.y, idx: idx };
+            });
+        }
+
+        // Find nearest point index from pixel coordinates (fast, no map API calls)
+        function findNearestIdx(px, py, pixels) {
+            let minDist = Infinity, nearestIdx = currentLeadTimeIndex;
+            for (let i = 0; i < pixels.length; i++) {
+                const dx = pixels[i].x - px;
+                const dy = pixels[i].y - py;
+                const d = dx * dx + dy * dy; // squared distance, no sqrt needed
+                if (d < minDist) { minDist = d; nearestIdx = pixels[i].idx; }
+            }
+            return nearestIdx;
+        }
+
+        // Lightweight update during drag: move marker + update tooltip, skip full rebuild
+        var dragRafPending = false;
+        function lightweightUpdate(newIdx) {
+            if (newIdx === currentLeadTimeIndex) return;
+            currentLeadTimeIndex = newIdx;
+
+            if (dragRafPending) return;
+            dragRafPending = true;
+            requestAnimationFrame(function() {
+                dragRafPending = false;
+                // Use the track passed to this function (could be primary or secondary)
+                var leadTime = track.leadTimes[currentLeadTimeIndex];
+                var pt = track.median.find(function(p) { return p.leadTimeHours === leadTime; });
+                if (pt && marker) {
+                    marker.setLatLng([pt.lat, pt.lon]);
+                    // Update tooltip with correct model label
+                    var initDate = new Date(track.initTime.replace(' ', 'T') + 'Z');
+                    var validMs = initDate.getTime() + pt.leadTimeHours * 3600000;
+                    var bjDate = new Date(validMs + 8 * 3600000);
+                    var mm = String(bjDate.getUTCMonth() + 1).padStart(2, '0');
+                    var dd = String(bjDate.getUTCDate()).padStart(2, '0');
+                    var hh = String(bjDate.getUTCHours()).padStart(2, '0');
+                    var min = String(bjDate.getUTCMinutes()).padStart(2, '0');
+                    var windMs = pt.wind || 0;
+                    var beaufort = getBeaufortScale(windMs);
+                    var tyLevel = getTyphoonLevel(windMs);
+                    var displayName = getTyphoonDisplayName(currentTrackId);
+                    marker.setTooltipContent(
+                        '<div style="font-size:13px;line-height:1.5;">' +
+                        '<div><b>' + (displayName ? displayName + ' · ' : '') + (modelLabel || '') + '</b> ' +
+                        mm + '-' + dd + ' ' + hh + ':' + min + ' CST</div>' +
+                        '<div>风速 ' + windMs.toFixed(1) + ' m/s（' + beaufort + (tyLevel ? ' · ' + tyLevel : '') + '）</div>' +
+                        '<div>气压 ' + (pt.pressure || '--') + ' hPa</div>' +
+                        '</div>'
+                    );
+                    // Update marker color based on wind
+                    var windColor = getWindColor(pt.wind);
+                    marker.setStyle({ fillColor: windColor });
+                    // Open tooltip on mobile during drag
+                    if (isMobile) marker.openTooltip();
+                }
+
+                // Also update the other marker in mean comparison mode
+                if (currentViewMode === 'mean' && mapLayers.markers.length > 1) {
+                    for (var i = 0; i < mapLayers.markers.length; i++) {
+                        var otherMarker = mapLayers.markers[i];
+                        if (otherMarker === marker) continue;
+                        // Find the other model's track
+                        var otherTrack = null;
+                        if (marker === mapLayers.markers[0]) {
+                            // Dragging primary, update secondary
+                            var secTracks = getSecondaryMeanTracks();
+                            otherTrack = secTracks && secTracks[currentTrackId];
+                        } else {
+                            // Dragging secondary, update primary
+                            otherTrack = tracks[currentTrackId];
+                        }
+                        if (otherTrack && otherTrack.median) {
+                            var otherLt = findClosestLeadTime(otherTrack.leadTimes, leadTime);
+                            var otherPt = otherTrack.median.find(function(p) { return p.leadTimeHours === otherLt; });
+                            if (otherPt) {
+                                otherMarker.setLatLng([otherPt.lat, otherPt.lon]);
+                                var windColor2 = getWindColor(otherPt.wind);
+                                otherMarker.setStyle({ fillColor: windColor2 });
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // Update slider and label (lightweight)
+                document.getElementById('timeSlider').value = currentLeadTimeIndex;
+                updateTimeLabel();
+                // Update chart highlight (lightweight, no rebuild)
+                updateChartHighlight();
+            });
+        }
+
+        // Mouse drag
+        L.DomEvent.on(el, 'mousedown', function(e) {
+            L.DomEvent.stop(e);
+            L.DomEvent.preventDefault(e);
+            el.style.cursor = 'grabbing';
+            map.dragging.disable();
+
+            var pixels = precomputePixelPoints();
+            var mapContainer = map.getContainer();
+            var rect = mapContainer.getBoundingClientRect();
+
+            function onMove(ev) {
+                var x = ev.clientX - rect.left;
+                var y = ev.clientY - rect.top;
+                var nearestIdx = findNearestIdx(x, y, pixels);
+                lightweightUpdate(nearestIdx);
+            }
+            function onUp() {
+                el.style.cursor = 'grab';
+                map.dragging.enable();
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                // Final full update to ensure everything is in sync
+                updateTimeStep();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // Touch drag (mobile) - optimized with pre-computed pixels + rAF
+        L.DomEvent.on(el, 'touchstart', function(e) {
+            L.DomEvent.stop(e);
+            L.DomEvent.preventDefault(e);
+            map.dragging.disable();
+
+            var pixels = precomputePixelPoints();
+            var mapContainer = map.getContainer();
+            var rect = mapContainer.getBoundingClientRect();
+            var touch = e.touches[0];
+            var startX = touch.clientX - rect.left;
+            var startY = touch.clientY - rect.top;
+            var hasMoved = false;
+
+            function onTouchMove(ev) {
+                if (ev.touches.length === 0) return;
+                var t = ev.touches[0];
+                var x = t.clientX - rect.left;
+                var y = t.clientY - rect.top;
+                if (Math.abs(x - startX) > 5 || Math.abs(y - startY) > 5) {
+                    hasMoved = true;
+                }
+                var nearestIdx = findNearestIdx(x, y, pixels);
+                lightweightUpdate(nearestIdx);
+                ev.preventDefault();
+            }
+            function onTouchEnd() {
+                map.dragging.enable();
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('touchend', onTouchEnd);
+                if (!hasMoved) {
+                    // Tap: open this marker's tooltip
+                    if (marker) marker.openTooltip();
+                    else if (mapLayers.markers.length > 0) mapLayers.markers[0].openTooltip();
+                } else {
+                    // Drag ended: full update
+                    updateTimeStep();
+                }
+            }
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+            document.addEventListener('touchend', onTouchEnd);
+        });
+    }
+
     function addMapMarker(point, track, color, modelLabel) {
         const windColor = getWindColor(point.wind);
-        const radius = Math.max(5, Math.min(10, (point.wind || 0) / 6));
+        // Fixed radius (not based on wind speed) for consistent appearance
+        const isMobile = window.matchMedia('(max-width: 1024px)').matches;
+        const radius = isMobile ? 6 : 7;
 
         const marker = L.circleMarker([point.lat, point.lon], {
             radius: radius,
@@ -1287,58 +1609,29 @@
         const min = String(bjDate.getUTCMinutes()).padStart(2, '0');
         const validTimeStr = `${mm}-${dd} ${hh}:${min} CST`;
 
+        const windMs = point.wind || 0;
+        const beaufort = getBeaufortScale(windMs);
+        const tyLevel = getTyphoonLevel(windMs);
+
         marker.bindTooltip(
             `<div style="font-size:13px;line-height:1.5;">
                 <div><b>${getTyphoonDisplayName(currentTrackId) ? getTyphoonDisplayName(currentTrackId) + ' · ' : ''}${modelLabel}</b> ${validTimeStr}</div>
-                <div>风速 ${(point.wind || 0).toFixed(1)} m/s</div>
+                <div>风速 ${windMs.toFixed(1)} m/s（${beaufort}${tyLevel ? ' · ' + tyLevel : ''}）</div>
                 <div>气压 ${point.pressure || '--'} hPa</div>
             </div>`,
             { direction: 'top', offset: [0, -radius - 2], className: 'typhoon-tooltip' }
         );
 
+        // Click/tap to show tooltip
+        marker.on('click', function() {
+            marker.openTooltip();
+        });
+
         // Draggable + wheel
         const markerEl = marker.getElement();
         if (!markerEl) { mapLayers.markers.push(marker); return; }
         markerEl.style.cursor = 'grab';
-
-        L.DomEvent.on(markerEl, 'wheel', function(e) {
-            L.DomEvent.stop(e);
-            L.DomEvent.preventDefault(e);
-            if (e.deltaY < 0) {
-                if (currentLeadTimeIndex > 0) { currentLeadTimeIndex--; updateTimeStep(); }
-            } else {
-                if (currentLeadTimeIndex < track.leadTimes.length - 1) { currentLeadTimeIndex++; updateTimeStep(); }
-            }
-        });
-
-        L.DomEvent.on(markerEl, 'mousedown', function(e) {
-            L.DomEvent.stop(e);
-            L.DomEvent.preventDefault(e);
-            markerEl.style.cursor = 'grabbing';
-            map.dragging.disable();
-
-            function onMove(ev) {
-                const mouseLatLng = map.mouseEventToLatLng(ev);
-                let minDist = Infinity, nearestIdx = currentLeadTimeIndex;
-                track.median.forEach((p, idx) => {
-                    const d = map.latLngToLayerPoint(L.latLng(p.lat, p.lon))
-                        .distanceTo(map.latLngToLayerPoint(mouseLatLng));
-                    if (d < minDist) { minDist = d; nearestIdx = idx; }
-                });
-                if (nearestIdx !== currentLeadTimeIndex) {
-                    currentLeadTimeIndex = nearestIdx;
-                    updateTimeStep();
-                }
-            }
-            function onUp() {
-                markerEl.style.cursor = 'grab';
-                map.dragging.enable();
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-            }
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
+        bindMarkerDragEvents(markerEl, track, marker, modelLabel);
 
         mapLayers.markers.push(marker);
     }
@@ -1491,7 +1784,7 @@
         allMedianWind.forEach(ds => {
             const pt = ds.data.find(d => d.x === currentLt);
             windDatasets.push({
-                label: '当前',
+                label: '',
                 data: pt ? [pt] : [],
                 borderColor: ds.borderColor,
                 backgroundColor: ds.borderColor,
@@ -1503,7 +1796,7 @@
         allMedianPressure.forEach(ds => {
             const pt = ds.data.find(d => d.x === currentLt);
             pressureDatasets.push({
-                label: '当前',
+                label: '',
                 data: pt ? [pt] : [],
                 borderColor: ds.borderColor,
                 backgroundColor: ds.borderColor,
@@ -1517,7 +1810,7 @@
             maintainAspectRatio: false,
             animation: { duration: 200 },
             plugins: {
-                legend: { display: currentViewMode === 'mean', position: 'top', labels: { font: { size: 10 } } },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         title: function(items) { return 'T+' + items[0].parsed.x + 'h'; }
@@ -1788,8 +2081,10 @@
 
     function toggleSidebar() {
         const sb = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
         const btn = document.getElementById('sidebarToggle');
         sb.classList.toggle('mobile-show');
+        if (overlay) overlay.classList.toggle('mobile-show');
         if (sb.classList.contains('mobile-show')) {
             btn.textContent = '✕';
             btn.style.background = '#6b7280';
@@ -2019,7 +2314,83 @@
         });
 
         loadBatchList();
-        loadCachedData();
+        autoLoadLatest();  // 自动加载最新数据
+    }
+
+    // ==================== Auto Load Latest ====================
+    async function autoLoadLatest() {
+        const status = document.getElementById('fileStatus');
+        const btn = document.getElementById('fetchBtn');
+
+        try {
+            // 1. 先尝试从本地缓存快速加载（如果有）
+            const cachedLoaded = await loadCachedData();
+
+            // 2. 查询服务器上最新可用批次
+            const resp = await fetch('/api/latest_available');
+            const latest = await resp.json();
+
+            if (!latest.found) {
+                if (!cachedLoaded) {
+                    status.textContent = '暂无可用数据，请手动选择批次下载';
+                }
+                return;
+            }
+
+            // 3. 如果本地缓存已经是最新的，不需要再下载
+            if (cachedLoaded && window._lastLoadedBatch === latest.init_time) {
+                status.textContent = `已加载最新数据: ${latest.beijing_time}`;
+                return;
+            }
+
+            // 4. 自动下载最新批次
+            status.textContent = `正在自动加载最新数据: ${latest.beijing_time} ...`;
+            btn.disabled = true;
+            btn.textContent = '⏳ 加载中...';
+
+            const downloads = [
+                { model: 'FNV3', type: 'ensemble' },
+                { model: 'FNV3', type: 'ensemble_mean' },
+                { model: 'GENC', type: 'ensemble' },
+                { model: 'GENC', type: 'ensemble_mean' }
+            ];
+
+            let successCount = 0;
+            const promises = downloads.map(async (dl) => {
+                try {
+                    const r = await fetch(`/api/download?model=${dl.model}&init_time=${latest.init_time}&type=${dl.type}&source=auto`);
+                    const d = await r.json();
+                    if (d.error) throw new Error(d.error);
+                    const fname = `${dl.model}_${dl.type}_${latest.init_time}_paired.csv`;
+                    parseCSVText(d.csv, fname);
+                    successCount++;
+                } catch (e) {
+                    console.warn(`自动加载 ${dl.model}/${dl.type} 失败:`, e);
+                }
+            });
+            await Promise.all(promises);
+
+            btn.disabled = false;
+            btn.textContent = '⬇ 下载全部并导入';
+
+            if (successCount > 0 && hasAnyData()) {
+                window._lastLoadedBatch = latest.init_time;
+                // 同步批次选择器到最新
+                const sel = document.getElementById('batchSelect');
+                if (sel) sel.value = latest.init_time;
+                activateDataView();
+                status.textContent = `✅ 已自动加载最新数据: ${latest.beijing_time} (${successCount}/4)`;
+            } else if (!cachedLoaded) {
+                status.textContent = '❌ 自动加载失败，请手动选择批次下载';
+            }
+        } catch (e) {
+            console.warn('自动加载失败:', e);
+            btn.disabled = false;
+            btn.textContent = '⬇ 下载全部并导入';
+            if (!cachedLoaded) {
+                status.textContent = '❌ 自动加载失败，请手动选择批次下载';
+            }
+        }
     }
 
     // ==================== Auto Load Cached ====================
@@ -2027,7 +2398,7 @@
         try {
             const resp = await fetch('/api/cached');
             const data = await resp.json();
-            if (data.total === 0) return;
+            if (data.total === 0) return false;
 
             // Find the latest batch that has all 4 files (FNV3+GENC × ensemble+ensemble_mean)
             const batchCounts = {};
@@ -2040,7 +2411,7 @@
                 if (batchCounts[b] >= 4) { bestBatch = b; break; }
             }
             if (!bestBatch) bestBatch = data.cached_batches[0];
-            if (!bestBatch) return;
+            if (!bestBatch) return false;
 
             const status = document.getElementById('fileStatus');
             status.textContent = `正在加载本地缓存 (${bestBatch})...`;
@@ -2057,14 +2428,15 @@
                 } catch (e) { console.warn('缓存加载失败:', f.filename, e); }
             }
 
-            if (Object.keys(tracks).length > 0) {
-                currentTrackId = Object.keys(tracks)[0];
-                currentLeadTimeIndex = 0;
-                renderAll();
-                status.textContent = `已加载本地缓存: ${bestBatch} (${batchFiles.length}个文件) — 点击「下载全部并导入」获取最新数据`;
+            if (hasAnyData()) {
+                activateDataView();
+                window._lastLoadedBatch = bestBatch;
+                return true;
             }
+            return false;
         } catch (e) {
             console.warn('无法加载缓存:', e);
+            return false;
         }
     }
 
