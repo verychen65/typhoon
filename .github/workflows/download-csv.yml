@@ -2,8 +2,8 @@ name: Download Typhoon CSV
 
 on:
   schedule:
-    # Run every 30 minutes to catch data published with delay
-    - cron: '*/30 * * * *'
+    # Run every 15 minutes to catch data published with delay
+    - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
 permissions:
