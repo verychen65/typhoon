@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""静态文件服务器 + DeepMind WeatherLab CSV 代理下载"""
+"""台风数据静态文件服务器，数据通过 GitHub CDN 获取"""
 import http.server
 import urllib.request
 import urllib.parse
@@ -14,9 +14,8 @@ DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(DIRECTORY, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# GitHub 镜像源配置（国内免梯子访问）
+# GitHub 镜像源配置（国内免梯子访问，数据由 Mac 自动化推送至 GitHub）
 # 格式: https://cdn.jsdelivr.net/gh/{用户名}/{仓库名}@main/data/
-# 留空则不使用镜像，直接从 DeepMind 下载
 GITHUB_MIRROR_BASE = os.environ.get('GITHUB_MIRROR_BASE', '')
 
 # 镜像文件列表缓存 (避免频繁请求 GitHub API)
@@ -167,13 +166,26 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': '缺少 track_id 参数'}, 400)
             return
 
-        # 解析 track_id: WP092026 → storm_num=09, year=2026
-        m = re.match(r'WP(\d{2})(\d{4})', track_id)
-        if not m:
-            self.send_json({'error': 'track_id 格式错误，应为 WPXXYYYY'}, 400)
-            return
-        storm_num = m.group(1)   # '09'
-        year = m.group(2)       # '2026'
+        # 解析 track_id: 支持 WP092026 或 CP902026 格式
+        # CP902026 → 编号=09 (第二位是padding), 年份=2026
+        m = re.match(r'WP(\d{2})(\d{4})$', track_id)
+        if m:
+            storm_num = m.group(1)   # '09'
+            year = m.group(2)       # '2026'
+        else:
+            m = re.match(r'CP(\d{2})(\d{4})$', track_id)
+            if m:
+                num_str = m.group(1)  # e.g. '90'
+                year = m.group(2)    # '2026'
+                num_val = int(num_str)
+                # 如果编号以0结尾且数值大于30，视为单数编号+padding（如90→9）
+                if num_str[1] == '0' and num_val > 30:
+                    storm_num = num_str[0].zfill(2)  # '9' -> '09'
+                else:
+                    storm_num = num_str
+            else:
+                self.send_json({'error': 'track_id 格式错误，应为 WPXXYYYY 或 CPXXYYYY'}, 400)
+                return
         url = f'https://agora.ex.nii.ac.jp/digital-typhoon/geojson/wnp/{year}{storm_num}.ja.json'
 
         try:
@@ -275,7 +287,7 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
         init_time = params.get('init_time', [None])[0]
         data_type = params.get('type', ['ensemble'])[0]  # ensemble or ensemble_mean
         model = params.get('model', ['FNV3'])[0]  # FNV3 or GENC
-        source = params.get('source', ['auto'])[0]  # auto, mirror, google
+        source = params.get('source', ['auto'])[0]  # auto, mirror
 
         if not init_time:
             self.send_json({'error': '缺少 init_time 参数'}, 400)
@@ -289,7 +301,7 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': '无效的 model 参数'}, 400)
             return
 
-        # 1. Check local cache first (skip if source=mirror or source=google)
+        # 1. Check local cache first (skip if source=mirror)
         filename = f'{model}_{data_type}_{init_time}_paired.csv'
         cache_path = os.path.join(DATA_DIR, filename)
         if source == 'auto' and os.path.exists(cache_path) and os.path.getsize(cache_path) > 1000:
@@ -327,7 +339,7 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                         return
             except urllib.error.HTTPError as e:
                 if e.code == 404:
-                    msg = f'该批次数据未同步到镜像源，请选择有📁标记的批次或尝试Google直连'
+                    msg = f'该批次数据尚未同步到 GitHub，请稍后再试'
                     self.send_json({'error': msg, 'url': mirror_url}, 404)
                     return
                 else:
@@ -370,38 +382,8 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json({'error': f'GitHub镜像下载失败: {e}'}, 502)
                     return
 
-        # 3. Try direct DeepMind download (only if source=auto or source=google)
-        if source in ('auto', 'google'):
-            url = f'https://deepmind.google.com/science/weatherlab/download/cyclones/{model}/{data_type}/paired/csv/{model}_{init_time}_paired.csv'
-            try:
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    data = resp.read()
-                    content_type = resp.headers.get('Content-Type', '')
-                    if len(data) < 1000 or ('html' in content_type.lower()) or data.strip().startswith(b'<'):
-                        self.send_json({'error': f'数据尚未发布或不可用 (大小: {len(data)} bytes)', 'url': url}, 404)
-                        return
-                    csv_text = data.decode('utf-8')
-                    with open(cache_path, 'w', encoding='utf-8') as f:
-                        f.write(csv_text)
-                    self.send_json({
-                        'csv': csv_text,
-                        'size': len(data),
-                        'url': url,
-                        'filename': filename,
-                        'cached': False,
-                        'source': 'google'
-                    })
-                    return
-            except urllib.error.HTTPError as e:
-                self.send_json({'error': f'HTTP {e.code}: {e.reason}', 'url': url}, 502)
-                return
-            except Exception as e:
-                self.send_json({'error': str(e), 'url': url}, 500)
-                return
-
-        # Fallback: no source available
-        self.send_json({'error': '无法下载数据，请检查下载源配置'}, 500)
+        # 3. NAS 无梯子，不尝试 DeepMind 直连，数据由 Mac 自动化推送到 GitHub 后通过 CDN 获取
+        self.send_json({'error': '该批次数据尚未同步到 GitHub，请等待自动化推送后再试'}, 404)
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')

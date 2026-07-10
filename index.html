@@ -714,34 +714,61 @@
     // Runtime cache: trackId → { ename, zh }
     const typhoonNameCache = {};
 
+    function convertTrackIdFormat(trackId) {
+        // Convert CP format (e.g. CP902026) to WP format (WP092026)
+        // CP format: CP + 2-digit number + 4-digit year
+        // If number ends with 0 and value > 30, treat as single-digit + padding (e.g. 90 -> 9)
+        // Pacific typhoon count rarely exceeds 30 per year.
+        const m = trackId.match(/^CP(\d{2})(\d{4})$/i);
+        if (m) {
+            const numStr = m[1]; // e.g. '90'
+            const year = m[2];   // e.g. '2026'
+            const numVal = parseInt(numStr, 10);
+            if (numStr[1] === '0' && numVal > 30) {
+                const num = parseInt(numStr[0], 10); // 9
+                return 'WP' + String(num).padStart(2, '0') + year;
+            }
+            return 'WP' + numStr + year;
+        }
+        return trackId;
+    }
+
     /**
      * Fetch English name from server proxy (which calls agora API).
      * Non-blocking: fetches in background, caches result, updates display.
      */
     function fetchTyphoonName(trackId) {
         if (!trackId) return;
-        // Only skip if we already have a valid name (has ename). If previous fetch failed or returned empty, allow retry.
-        if (typhoonNameCache[trackId] && typhoonNameCache[trackId].ename) return;
+        // Skip embryo/perturbation IDs (CP format) — they are not named yet
+        if (trackId.match(/^CP/i)) return;
 
-        fetch('/api/typhoon-name?track_id=' + encodeURIComponent(trackId))
+        // Convert CP format (e.g. CP902026) to WP format (WP092026) for agora API
+        const normalized = convertTrackIdFormat(trackId);
+        // Use normalized for cache key to avoid duplicate fetches
+        if (typhoonNameCache[normalized] && typhoonNameCache[normalized].ename) return;
+        // Also cache if already failed (empty ename)
+        if (typhoonNameCache[normalized] && typhoonNameCache[normalized]._failed) return;
+
+        fetch('/api/typhoon-name?track_id=' + encodeURIComponent(normalized))
             .then(r => r.json())
             .then(d => {
                 if (d && d.found && d.ename) {
-                    typhoonNameCache[trackId] = {
+                    typhoonNameCache[normalized] = {
                         ename: d.ename,
                         zh: ENAME_TO_ZH[d.ename] || ''
                     };
                 } else {
-                    // Not found in API (unnamed or not yet in database)
-                    typhoonNameCache[trackId] = { ename: '', zh: '' };
+                    // Cache failure to avoid retrying
+                    typhoonNameCache[normalized] = { ename: '', zh: '', _failed: true };
                 }
-                // Update display if this is the current track, and refresh selector options
-                if (trackId === currentTrackId) updateTyphoonNameDisplay();
-                populateTrackSelector(); // refresh dropdown text for all tracks
+                // Update display if this is the current track (match original or normalized)
+                if (trackId === currentTrackId || normalized === currentTrackId) updateTyphoonNameDisplay();
+                populateTrackSelector();
             })
             .catch(() => {
-                typhoonNameCache[trackId] = { ename: '', zh: '' };
-                populateTrackSelector(); // refresh even on error to show fallback consistently
+                // Network failure: cache to avoid retrying
+                typhoonNameCache[normalized] = { ename: '', zh: '', _failed: true };
+                populateTrackSelector();
             });
     }
 
@@ -752,17 +779,28 @@
     function getTyphoonDisplayName(trackId) {
         if (!trackId) return '未识别台风';
 
+        // 胚胎/扰动编号（CP 开头）：直接显示编号，不查询命名
+        // CP902026 = 2026年中太平洋第90号热带扰动
+        const cpMatch = trackId.match(/^CP(\d{2})(\d{4})$/i);
+        if (cpMatch) {
+            const num = parseInt(cpMatch[1], 10);
+            const year = cpMatch[2];
+            return year + '年第' + num + '号热带扰动';
+        }
+
+        const normalized = convertTrackIdFormat(trackId);
+
         // 1. API-fetched name (via fetchTyphoonName)
-        if (typhoonNameCache[trackId]) {
-            const { ename, zh } = typhoonNameCache[trackId];
+        if (typhoonNameCache[normalized]) {
+            const { ename, zh } = typhoonNameCache[normalized];
             if (zh && ename) return zh + ' (' + capitalize(ename) + ')';
             if (ename && ENAME_TO_ZH[ename]) return ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
             if (ename) return capitalize(ename);
         }
 
-        // 2. 检查 localStorage（用户自定义名称）
+        // 2. 检查 localStorage（用户自定义名称）— 使用原始 ID 保存
         try {
-            const saved = localStorage.getItem('typhoon_name_' + trackId);
+            const saved = localStorage.getItem('typhoon_name_' + trackId) || localStorage.getItem('typhoon_name_' + normalized);
             if (saved) {
                 // 如果用户保存的是完整格式，直接使用
                 if (saved.includes('(')) return saved;
@@ -781,7 +819,7 @@
         fetchTyphoonName(trackId);
 
         // 4. Fallback: parse storm number
-        const m = trackId.match(/WP(\d{2})(\d{4})/);
+        const m = normalized.match(/WP(\d{2})(\d{4})/);
         if (m) {
             const stormNum = parseInt(m[1], 10);
             return m[2] + '年第' + stormNum + '号气旋';
@@ -1208,7 +1246,8 @@
             currentTrackId = previousSelection;
             selector.value = previousSelection;
         } else if (trackIds.length > 0) {
-            currentTrackId = trackIds[0];
+            // Prefer WP (formal) tracks over CP (embryo) tracks
+            currentTrackId = trackIds.find(t => t.startsWith('WP')) || trackIds[0];
         }
         updateTyphoonNameDisplay();
     }
