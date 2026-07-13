@@ -1,0 +1,18 @@
+# If this file contains data that relates to a time no more than 48 hours ago,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time more than 48 hours ago is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots
+2026-07-12 18:00:00,WP092026,-1,2026-07-12 18:00:00,0 days 00:00:00,0,32.5,117.75,990.8,57.6
+2026-07-12 18:00:00,WP092026,-1,2026-07-13 00:00:00,0 days 06:00:00,6,33.25,117.92,991.3,56.9
+2026-07-12 18:00:00,WP092026,-1,2026-07-13 06:00:00,0 days 12:00:00,12,34.0,118.09,991.7,56.3
+2026-07-12 18:00:00,WP092026,-1,2026-07-13 12:00:00,0 days 18:00:00,18,34.65,118.77,992.1,55.8
+2026-07-12 18:00:00,WP092026,-1,2026-07-13 18:00:00,1 days 00:00:00,24,35.3,119.46,992.4,55.3
+2026-07-12 18:00:00,WP092026,-1,2026-07-14 00:00:00,1 days 06:00:00,30,36.3,120.78,992.4,55.3
+2026-07-12 18:00:00,WP092026,-1,2026-07-14 06:00:00,1 days 12:00:00,36,37.28,122.13,992.4,55.3
+2026-07-12 18:00:00,WP092026,-1,2026-07-14 12:00:00,1 days 18:00:00,42,38.24,125.22,991.5,56.6
+2026-07-12 18:00:00,WP092026,-1,2026-07-14 18:00:00,2 days 00:00:00,48,39.15,128.33,990.8,57.6
+2026-07-12 18:00:00,WP092026,-1,2026-07-15 00:00:00,2 days 06:00:00,54,40.58,131.42,989.0,60.1
+2026-07-12 18:00:00,WP092026,-1,2026-07-15 06:00:00,2 days 12:00:00,60,41.92,134.49,987.5,62.2
