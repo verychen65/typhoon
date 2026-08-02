@@ -18,7 +18,7 @@ jobs:
       - name: Download missing CSV files
         run: |
           mkdir -p data
-          MODELS="FNV3 GENC"
+          MODELS="FNV3 FNV3P2 GENC"
           TYPES="ensemble ensemble_mean"
 
           # Check last 2 days (today and yesterday) for missing data
