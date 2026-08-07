@@ -1,0 +1,13 @@
+# If this file contains data that relates to a time no more than 48 hours ago,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time more than 48 hours ago is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-07-14 06:00:00,WP092026,-1,2026-07-14 06:00:00,0 days 00:00:00,0,37.5,123.0,992.0,29.0,92.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-14 06:00:00,WP092026,-1,2026-07-14 12:00:00,0 days 06:00:00,6,38.62,124.94,992.4,27.3,92.89266817410987,0.5393951142023036,4.816854816826409,0.6616512895216003,0.5226388848364014,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-14 06:00:00,WP092026,-1,2026-07-14 18:00:00,0 days 12:00:00,12,39.42,128.63,992.8,26.1,97.12946766031327,1.9661428548665785,0.20427992027561956,0.175212950695836,0.0426734150662063,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-14 06:00:00,WP092026,-1,2026-07-15 00:00:00,0 days 18:00:00,18,40.58,131.95,990.3,27.4,101.6990689241369,0.0,0.3027229293410406,7.682520458582707,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-14 06:00:00,WP092026,-1,2026-07-15 06:00:00,1 days 00:00:00,24,41.75,135.18,991.4,26.1,139.52971705090405,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-14 06:00:00,WP092026,-1,2026-07-15 12:00:00,1 days 06:00:00,30,43.31,137.91,990.1,27.9,107.08335793992424,3.6375595189574597,3.887915824215675,0.4820974105618796,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

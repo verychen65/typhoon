@@ -1,0 +1,15 @@
+# If this file contains data that relates to a time no more than 48 hours ago,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time more than 48 hours ago is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-07-13 18:00:00,WP092026,-1,2026-07-13 18:00:00,0 days 00:00:00,0,35.7,119.9,993.0,25.0,92.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-14 00:00:00,0 days 06:00:00,6,36.91,120.77,993.4,25.6,87.07955143109862,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-14 06:00:00,0 days 12:00:00,12,37.84,122.54,991.8,25.9,104.76779223222121,3.099131198005125,3.9689213000841965,4.774638178286762,2.5619430343548806,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-14 12:00:00,0 days 18:00:00,18,38.69,124.73,992.3,27.0,105.41216985624162,2.2707224148094767,0.12881980600597986,3.023575870348219,0.12694467279132657,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-14 18:00:00,1 days 00:00:00,24,39.43,128.15,994.0,25.5,76.85205817423501,0.7100599204173023,3.0368948060830734,0.226080753438817,0.4651125262883719,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-15 00:00:00,1 days 06:00:00,30,40.74,132.13,993.4,25.3,104.49952131809518,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP092026,-1,2026-07-15 06:00:00,1 days 12:00:00,36,41.76,135.22,993.0,24.3,138.7134241559392,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-07-13 18:00:00,WP972026,-1,2026-07-13 18:00:00,0 days 00:00:00,0,12.6,135.0,1005.0,25.0,111.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
