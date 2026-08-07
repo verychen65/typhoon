@@ -21,8 +21,8 @@ jobs:
           MODELS="FNV3P2 GENC"
           TYPES="ensemble ensemble_mean"
 
-          # Check last 2 days (today and yesterday) for missing data
-          for offset in 0 1; do
+          # Check last 30 days for missing data (auto-backfill older batches)
+          for offset in $(seq 0 29); do
             DATE=$(date -u -d "${offset} days ago" +%Y_%m_%d)
             for hour in 00 06 12 18; do
               TIMESTAMP="${DATE}T${hour}_00"
@@ -55,9 +55,9 @@ jobs:
             done
           done
 
-      - name: Clean old files (keep 15 days)
+      - name: Clean old files (keep 30 days)
         run: |
-          find data/ -name "*.csv" -mtime +15 -delete 2>/dev/null || true
+          find data/ -name "*.csv" -mtime +30 -delete 2>/dev/null || true
 
       - name: Commit and push
         run: |
