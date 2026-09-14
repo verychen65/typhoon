@@ -1,0 +1,17 @@
+# If this file contains data that relates to a time no more than 48 hours ago,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time more than 48 hours ago is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots
+2026-09-14,EP142026,-1,2026-09-14 00:00:00,0 days 00:00:00,0,19.0,-134.75,1002.0,40.3
+2026-09-14,EP142026,-1,2026-09-14 06:00:00,0 days 06:00:00,6,19.34,-135.95,1002.8,39.0
+2026-09-14,EP142026,-1,2026-09-14 12:00:00,0 days 12:00:00,12,19.67,-137.15,1003.5,37.8
+2026-09-14,EP152026,-1,2026-09-14 00:00:00,0 days 00:00:00,0,16.75,-117.75,1003.5,37.7
+2026-09-14,EP152026,-1,2026-09-14 06:00:00,0 days 06:00:00,6,16.79,-118.41,1003.3,38.1
+2026-09-14,EP152026,-1,2026-09-14 12:00:00,0 days 12:00:00,12,16.83,-119.08,1003.1,38.4
+2026-09-14,EP152026,-1,2026-09-14 18:00:00,0 days 18:00:00,18,16.64,-120.06,1002.6,39.3
+2026-09-14,EP152026,-1,2026-09-15 00:00:00,1 days 00:00:00,24,16.45,-121.03,1002.1,40.2
+2026-09-14,EP152026,-1,2026-09-15 06:00:00,1 days 06:00:00,30,16.39,-121.94,1002.4,39.6
+2026-09-14,EP152026,-1,2026-09-15 12:00:00,1 days 12:00:00,36,16.33,-122.85,1002.7,39.1
