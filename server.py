@@ -27,6 +27,12 @@ GZIP_CACHE_MAX = 24          # 压缩结果缓存条数（按 mtime+size 失效�
 _gzip_cache = {}
 _gzip_cache_lock = threading.Lock()
 
+# 从 jsDelivr 镜像拉原始 CSV 的超时。
+# 大文件（WNV3 ensemble 2.3MB / OPER ensemble 1.5MB）实测要 3~10 秒，
+# 冷缓存时首字节还能再等几秒，原先 8 秒会时不时直接失败。
+# 注意 urllib 的 timeout 是"单次读写"超时，不是总时长，所以这里只是兜住卡死的情况。
+MIRROR_FETCH_TIMEOUT = 45
+
 # ============ 气象厅(agora) 台风编号/名称解析 ============
 # 背景：DeepMind WeatherLab 的 WP 编号与气象厅官方编号不一致（数据源漏编过一号，
 # 之后整体偏移 +1）。页面对显示的序号做了 +1 纠偏，但英文名如果还拿 WP 原始编号去查，
@@ -385,7 +391,14 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                     'mirror': mirror
                 })
         batches.sort(key=lambda x: x['timestamp'], reverse=True)
-        self.send_json({'batches': batches, 'now_utc': now_utc.strftime('%Y-%m-%d %H:%M UTC'), 'mirror_enabled': bool(GITHUB_MIRROR_BASE)})
+        self.send_json({
+            'batches': batches,
+            'now_utc': now_utc.strftime('%Y-%m-%d %H:%M UTC'),
+            'mirror_enabled': bool(GITHUB_MIRROR_BASE),
+            # 镜像文件列表这次有没有真正拿到。拿不到时 mirror 全是 false，
+            # 前端据此决定要不要提示"未同步"（否则会把明明在镜像上的批次也标成没同步）
+            'mirror_files_known': bool(mirror_files)
+        })
 
     def handle_latest_available(self):
         """返回镜像/本地有任一文件的最新批次（不要求完整4文件），附 complete 标记。
@@ -589,6 +602,14 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
         model = params.get('model', ['OPER'])[0]  # OPER or WNV3
         source = params.get('source', ['auto'])[0]  # auto, mirror
 
+        # 旧版前端的 "Google直连"（source=google）已下线：
+        # 这台 NAS 到不了 deepmind.google.com，浏览器侧又被 CORS 挡住
+        # （响应里没有 Access-Control-Allow-Origin，OPTIONS 预检直接 501），
+        # 数据现在由 GitHub Actions 定时抓取后进镜像。
+        # 这里把旧参数按 auto 处理，免得老页面拿到一个看不懂的 404。
+        if source not in ('auto', 'mirror'):
+            source = 'auto'
+
         if not init_time:
             self.send_json({'error': '缺少 init_time 参数'}, 400)
             return
@@ -627,7 +648,7 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
             mirror_url = f'{GITHUB_MIRROR_BASE}/{filename}'
             try:
                 req = urllib.request.Request(mirror_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=8) as resp:
+                with urllib.request.urlopen(req, timeout=MIRROR_FETCH_TIMEOUT) as resp:
                     data = resp.read()
                     if len(data) > 1000 and not data.strip().startswith(b'<'):
                         csv_text = data.decode('utf-8')
@@ -668,7 +689,7 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                     repo_part = parts[1].split('@')[0]  # USER/REPO
                     raw_url = f'https://raw.githubusercontent.com/{repo_part}/main/data/{filename}'
                     req = urllib.request.Request(raw_url, headers={'User-Agent': 'Mozilla/5.0'})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
+                    with urllib.request.urlopen(req, timeout=MIRROR_FETCH_TIMEOUT) as resp:
                         data = resp.read()
                         if len(data) > 1000 and not data.strip().startswith(b'<'):
                             csv_text = data.decode('utf-8')
@@ -691,8 +712,10 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_json({'error': f'GitHub镜像下载失败: {e}'}, 502)
                     return
 
-        # 3. NAS 无梯子，不尝试 DeepMind 直连，数据由 Mac 自动化推送到 GitHub 后通过 CDN 获取
-        self.send_json({'error': '该批次数据尚未同步到 GitHub，请等待自动化推送后再试'}, 404)
+        # 3. 本地没有、镜像上也没有（或镜像取失败）
+        self.send_json({
+            'error': '该批次在本地缓存和 GitHub 镜像上都没有，请等自动化推送后再试'
+        }, 404)
 
     def send_json(self, obj, code=200, etag=None, cache_max_age=0):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
