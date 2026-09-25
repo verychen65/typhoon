@@ -868,6 +868,40 @@
     }
 
     /**
+     * 取某个气旋的参考位置与时间（初始时刻）。
+     * 服务端拿它去气象厅档案里匹配官方编号——数据源编号和官方编号差一号，
+     * 只按编号查名字会取成隔壁那个台风的名字。
+     */
+    function getStormRef(tid) {
+        const cands = [];
+        if (tracks && tracks[tid]) cands.push(tracks[tid]);
+        ['OPER', 'WNV3'].forEach(m => {
+            ['ensemble', 'ensemble_mean'].forEach(k => {
+                const d = modelData[m] && modelData[m][k];
+                if (d && d.tracks && d.tracks[tid]) cands.push(d.tracks[tid]);
+            });
+        });
+        for (const t of cands) {
+            if (!t || !t.sampleIds || !t.sampleIds.length) continue;
+            const s = t.samples[t.sampleIds[0]];
+            if (s && s.length && s[0].validTime) {
+                return { lat: s[0].lat, lon: s[0].lon, time: s[0].validTime };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 英文名 → 中文名。agora 里有的名字带连字符（BANG-LANG / CHAN-HOM），
+     * 而名字表里存的是连写形式，之前这两个台风一直取不到中文名。
+     */
+    function zhNameFor(ename) {
+        if (!ename) return '';
+        const key = String(ename).toUpperCase();
+        return ENAME_TO_ZH[key] || ENAME_TO_ZH[key.replace(/-/g, '')] || '';
+    }
+
+    /**
      * Fetch English name from server proxy (which calls agora API).
      * Non-blocking: fetches in background, caches result, updates display.
      */
@@ -885,13 +919,23 @@
         if (cached && (cached.ename || cached._failed || cached._pending)) return;
         typhoonNameCache[normalized] = { _pending: true };
 
-        fetch('/api/typhoon-name?track_id=' + encodeURIComponent(normalized))
+        // 带上初始时刻的位置，服务端据此把数据源编号对到气象厅官方编号
+        let url = '/api/typhoon-name?track_id=' + encodeURIComponent(normalized);
+        const ref = getStormRef(trackId) || getStormRef(normalized);
+        if (ref && typeof ref.lat === 'number' && typeof ref.lon === 'number') {
+            url += '&time=' + encodeURIComponent(ref.time) +
+                   '&lat=' + encodeURIComponent(ref.lat) +
+                   '&lon=' + encodeURIComponent(ref.lon);
+        }
+        fetch(url)
             .then(r => r.json())
             .then(d => {
                 if (d && d.found && d.ename) {
                     typhoonNameCache[normalized] = {
                         ename: d.ename,
-                        zh: ENAME_TO_ZH[d.ename] || ''
+                        zh: zhNameFor(d.ename),
+                        officialNum: d.official_num || null,
+                        matchedBy: d.matched_by || ''
                     };
                 } else {
                     // Cache failure to avoid retrying
@@ -960,12 +1004,14 @@
 
         // 2. API-fetched name (via fetchTyphoonName)
         if (typhoonNameCache[normalized]) {
-            const { ename, zh } = typhoonNameCache[normalized];
-            const realNum = getRealStormNum(normalized);
+            const { ename, zh, officialNum } = typhoonNameCache[normalized];
+            // 官方编号优先（服务端按位置匹配得到，编号与名字同源）；
+            // 还没匹配到时才退回本地 +1 纠偏
+            const realNum = officialNum || getRealStormNum(normalized);
             const year = normalized.slice(4); // '2026'
             const seq = realNum ? (year + '年第' + realNum + '号台风') : '';
             if (zh && ename) return seq + zh + ' (' + capitalize(ename) + ')';
-            if (ename && ENAME_TO_ZH[ename]) return seq + ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
+            if (ename && zhNameFor(ename)) return seq + zhNameFor(ename) + ' (' + capitalize(ename) + ')';
             if (ename) return seq + capitalize(ename);
         }
 
