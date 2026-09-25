@@ -65,6 +65,13 @@ jobs:
           echo "Removing files older than $CUTOFF"
           for f in data/*.csv; do
             [ -e "$f" ] || continue
+            # 已停用的模型（旧版是 FNV3/FNV3P2/GENC）留下的历史文件直接清掉，
+            # 不用等它们自然老化到 30 天。只匹配已知的旧模型前缀，
+            # 不动其他任何文件（万一以后 data/ 里放了清单之类的）
+            case "$f" in
+              data/FNV3_*|data/FNV3P2_*|data/GENC_*)
+                echo "  remove legacy model file: $f"; rm -f "$f"; continue ;;
+            esac
             stamp=$(basename "$f" | sed -n 's/.*_\([0-9]\{4\}_[0-9]\{2\}_[0-9]\{2\}T[0-9]\{2\}_00\)_paired\.csv$/\1/p')
             [ -z "$stamp" ] && continue
             day=${stamp:0:10}
