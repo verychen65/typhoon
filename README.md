@@ -3,8 +3,8 @@
 Auto-synced cyclone forecast data from Google DeepMind WeatherLab.
 
 ## Models
-- FNV3 (ensemble + ensemble_mean)
-- GENC (ensemble + ensemble_mean)
+- OPER (ensemble + ensemble_mean)
+- WNV3 (ensemble + ensemble_mean)
 
 ## Update Schedule
 - UTC 00:30, 06:30, 12:30, 18:30 (4 times daily)
