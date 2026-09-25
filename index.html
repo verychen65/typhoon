@@ -671,10 +671,11 @@
             <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入 CSV</button>
             <span style="color:#d1d5db;">|</span>
             <select id="batchSelect" class="batch-select" onchange="onBatchChange()"></select>
-            <select id="sourceSelect" class="batch-select" title="下载源">
-                <option value="auto">自动</option>
-                <option value="mirror">GitHub镜像</option>
-                <option value="google">Google直连</option>
+            <!-- 只保留真正可用的两种：服务器取不到 DeepMind，浏览器取又被 CORS 挡，
+                 所以"Google直连"已经下线（数据由 GitHub Actions 定时抓取后放进镜像）。 -->
+            <select id="sourceSelect" class="batch-select" title="自动：本地缓存优先；强制刷新：忽略本地缓存，重新从 GitHub 镜像下载">
+                <option value="auto">自动（缓存优先）</option>
+                <option value="mirror">强制刷新</option>
             </select>
             <button id="fetchBtn" class="btn btn-success" onclick="toggleDownload()">⬇ 下载全部并导入</button>
             <button id="fetchLatestBtn" class="btn btn-primary" onclick="fetchLatestData()">⚡ 下载最新</button>
@@ -2493,6 +2494,9 @@
             if (!resp.ok) throw new Error('API 返回 ' + resp.status);
             const data = await resp.json();
             batchList = data.batches || [];
+            // 镜像文件列表没拿到时（GitHub API 限流等），mirror 全是 false，
+            // 这时不能据此判断"没同步"，只能退回到按本地缓存判断
+            const mirrorKnown = !!data.mirror_files_known;
             sel.innerHTML = '';
             if (batchList.length === 0) {
                 sel.innerHTML = '<option>无可用批次</option>';
@@ -2503,17 +2507,24 @@
                 opt.value = b.init_time;
                 let label = b.beijing_time;
                 if (b.cached) label += ' 📁';
+                // cached/mirror 才代表"现在真能取到"：上游按时刻该发布了、
+                // 但还没同步到镜像的批次，选上了也下不动
+                const usable = b.cached || (mirrorKnown && b.mirror);
                 if (!b.available) {
                     opt.disabled = true;
                     label += ' (未发布)';
+                } else if (!usable) {
+                    label += mirrorKnown ? ' (未同步到镜像)' : '';
                 }
                 opt.textContent = label;
                 sel.appendChild(opt);
             });
-            const firstAvailable = batchList.find(b => b.available);
-            if (firstAvailable) {
-                sel.value = firstAvailable.init_time;
-            }
+            // 默认选中"最新且确实取得到"的批次，避免一进来点下载就报错。
+            // 镜像列表不确定时，宁可退到确定有本地缓存的那个批次。
+            const target = batchList.find(b => b.available && b.cached)
+                        || (mirrorKnown ? batchList.find(b => b.available && b.mirror) : null)
+                        || batchList.find(b => b.available);
+            if (target) sel.value = target.init_time;
         } catch (e) {
             console.warn('无法获取批次列表:', e);
             sel.innerHTML = '<option>⚠ 请通过服务器访问</option>';
@@ -2685,7 +2696,7 @@
 
         downloadAbortController = new AbortController();
         btn.textContent = '⏹ 取消下载';
-        const sourceLabel = source === 'auto' ? '自动' : (source === 'mirror' ? 'GitHub镜像' : 'Google直连');
+        const sourceLabel = source === 'mirror' ? '强制刷新' : '自动';
         status.textContent = `正在下载 4 个文件 (${sourceLabel})...`;
         document.getElementById('dropError').style.display = 'none';
 
@@ -2710,7 +2721,8 @@
                 const fname = `${dl.model}_${dl.type}_${batch}_paired.csv`;
                 parseCSVText(data.csv, fname);
                 successCount++;
-                const sourceTag = data.source === 'local_cache' ? ' (本地缓存)' : (data.source === 'github_mirror' ? ' (镜像)' : (data.source === 'google' ? ' (Google)' : ''));
+                const srcName = { local_cache: '本地缓存', github_mirror: '镜像', github_raw: 'GitHub直连' }[data.source] || '';
+                const sourceTag = srcName ? ` (${srcName})` : '';
                 status.textContent = `已加载 ${successCount}/${downloads.length}: ${dl.model} ${dl.type}${sourceTag}`;
             } catch (e) {
                 if (e.name === 'AbortError') return;
