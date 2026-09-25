@@ -9,6 +9,8 @@ import json
 import math
 import os
 import re
+import socket
+import ssl
 import threading
 import time
 from datetime import datetime, timezone, timedelta
@@ -17,6 +19,41 @@ PORT = 8090
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(DIRECTORY, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# ============ 同端口 http / https 共存 ============
+# 8090 原来只跑明文 HTTP。如果直接改成 HTTPS，原来那些 http://…:8090 的链接
+# 全部会失效；所以这里在收到连接后窥探第一个字节：
+#   - 0x16 是 TLS 握手记录类型 → 按 HTTPS 处理
+#   - 其他字节（G/P/H/D…，即 GET/POST/HEAD…）→ 仍按明文 HTTP 处理
+# 证书沿用 QTS 反向代理那一份（/etc/stunnel/acme.*，由 apply-cert.sh 续期时更新）。
+TLS_CERT_FILE = os.environ.get('TLS_CERT_FILE', '/etc/stunnel/acme.cert')
+TLS_KEY_FILE = os.environ.get('TLS_KEY_FILE', '/etc/stunnel/acme.key')
+TLS_CHAIN_FILE = os.environ.get('TLS_CHAIN_FILE', '/etc/stunnel/uca.pem')
+
+
+def build_ssl_context():
+    """证书齐全就返回 SSLContext；缺文件或加载失败返回 None（退回纯 HTTP）。"""
+    for path in (TLS_CERT_FILE, TLS_KEY_FILE):
+        if not os.path.exists(path):
+            print(f'TLS 未启用：找不到 {path}')
+            return None
+    try:
+        # load_cert_chain 的 certfile 里可以带中间证书，会一并下发给客户端；
+        # 代理那边是「证书」和「链」分成两个文件，这里合成一个临时文件。
+        fullchain = os.path.join(DIRECTORY, '.tls-fullchain.pem')
+        with open(fullchain, 'wb') as out:
+            with open(TLS_CERT_FILE, 'rb') as f:
+                out.write(f.read())
+            if os.path.exists(TLS_CHAIN_FILE):
+                with open(TLS_CHAIN_FILE, 'rb') as f:
+                    out.write(f.read())
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(fullchain, TLS_KEY_FILE)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        return ctx
+    except Exception as e:
+        print(f'TLS 初始化失败，退回纯 HTTP: {e}')
+        return None
 
 # ============ 静态资源 gzip ============
 # index.html 有 120KB，弱网下首屏要等很久；这几类文本资源压缩后只有原来的 1/5 左右。
@@ -784,6 +821,52 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         super().end_headers()
 
+
+class TyphoonServer(http.server.ThreadingHTTPServer):
+    """同一个端口上同时接受明文 HTTP 和 HTTPS。
+
+    协议探测放在独立线程里做——get_request() 是在 accept 循环里调的，
+    如果在里面等客户端发首字节，一个不说话的连接就能把整个服务卡住。
+    """
+
+    daemon_threads = True
+    allow_reuse_address = True
+    ssl_context = None
+
+    def process_request(self, request, client_address):
+        if self.ssl_context is None:
+            return super().process_request(request, client_address)
+        t = threading.Thread(target=self._peek_and_dispatch,
+                             args=(request, client_address), daemon=True)
+        t.start()
+
+    def _peek_and_dispatch(self, sock, addr):
+        first = b''
+        try:
+            sock.settimeout(10)
+            first = sock.recv(1, socket.MSG_PEEK)
+        except OSError:
+            first = b''
+
+        if first == b'\x16':
+            # TLS 握手
+            try:
+                sock = self.ssl_context.wrap_socket(sock, server_side=True)
+            except (ssl.SSLError, OSError):
+                # 握手失败（例如用 http 访问了 https 端口）：直接关掉，
+                # 不要把异常抛回 accept 循环
+                self.shutdown_request(sock)
+                return
+        else:
+            # 明文 HTTP：恢复默认（不超时），保持原来的行为
+            try:
+                sock.settimeout(None)
+            except OSError:
+                pass
+
+        self.process_request_thread(sock, addr)
+
+
 if __name__ == '__main__':
     # 先把镜像文件列表在后台预热好，这样服务开始接请求时基本不会碰到冷启动等待
     if GITHUB_MIRROR_BASE:
@@ -791,8 +874,14 @@ if __name__ == '__main__':
 
     # ThreadingHTTPServer：并发处理请求。
     # 原 HTTPServer 单线程，误差分析并发拉 54 文件时全部排队串行，首次加载极慢。
-    server = http.server.ThreadingHTTPServer(('0.0.0.0', PORT), TyphoonHandler)
+    ssl_ctx = build_ssl_context()
+    server = TyphoonServer(('0.0.0.0', PORT), TyphoonHandler)
+    server.ssl_context = ssl_ctx
     print(f'服务器启动: http://localhost:{PORT}')
+    if ssl_ctx:
+        print(f'            https://localhost:{PORT}  (同一端口，自动识别 http/https)')
+    else:
+        print('            (未启用 TLS：未找到证书文件，仍为纯 HTTP)')
     print(f'API: http://localhost:{PORT}/api/latest  (获取最新批次)')
     print(f'API: http://localhost:{PORT}/api/download?model=OPER|WNV3&init_time=YYYY_MM_DDTHH_00&type=ensemble')
     if GITHUB_MIRROR_BASE:
