@@ -6,6 +6,7 @@ import urllib.parse
 import gzip
 import io
 import json
+import math
 import os
 import re
 import threading
@@ -25,6 +26,126 @@ GZIP_LEVEL = 5
 GZIP_CACHE_MAX = 24          # 压缩结果缓存条数（按 mtime+size 失效）
 _gzip_cache = {}
 _gzip_cache_lock = threading.Lock()
+
+# ============ 气象厅(agora) 台风编号/名称解析 ============
+# 背景：DeepMind WeatherLab 的 WP 编号与气象厅官方编号不一致（数据源漏编过一号，
+# 之后整体偏移 +1）。页面对显示的序号做了 +1 纠偏，但英文名如果还拿 WP 原始编号去查，
+# 取回来的就是隔壁那个台风的英文名 —— 例如 WP252026 实际是官方第 26 号 SURIGAE，
+# 按 25 去查会拿到第 25 号 DUJUAN，于是页面显示成"第26号台风杜鹃"。
+# 所以这里不再猜编号，而是拿风暴的初始时间和位置，去官方档案里找轨迹对得上的那个编号。
+AGORA_BASE = 'https://agora.ex.nii.ac.jp/digital-typhoon/geojson/wnp'
+AGORA_CACHE_TTL = 3600          # 轨迹缓存 1 小时（风暴路径本身会更新）
+AGORA_FAIL_TTL = 120            # 取失败短暂缓存，避免反复等超时
+AGORA_TIME_WINDOW = 6 * 3600    # 时间对齐窗口（秒）
+AGORA_MAX_MATCH_KM = 500        # 位置匹配上限
+_agora_cache = {}
+_agora_cache_lock = threading.Lock()
+
+
+def fetch_agora_storm(year, num, timeout=8):
+    """取官方编号 num 的轨迹 JSON（带内存缓存）。返回 dict 或 None。"""
+    key = f'{year}{int(num):02d}'
+    now = time.time()
+    with _agora_cache_lock:
+        hit = _agora_cache.get(key)
+        if hit:
+            ttl = AGORA_CACHE_TTL if hit[1] else AGORA_FAIL_TTL
+            if (now - hit[0]) < ttl:
+                return hit[1]
+    data = None
+    try:
+        url = f'{AGORA_BASE}/{key}.ja.json'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            print(f'  agora {key} HTTP {e.code}')
+    except Exception as e:
+        print(f'  agora {key} error: {e}')
+    with _agora_cache_lock:
+        _agora_cache[key] = (now, data)
+    return data
+
+
+def agora_name(data):
+    return ((data or {}).get('properties') or {}).get('name', '').strip()
+
+
+def agora_points(data):
+    """geojson → [(epoch, lat, lon), ...]，按时间升序。"""
+    pts = []
+    for feat in (data or {}).get('features', []):
+        ts = (feat.get('properties') or {}).get('time')
+        coords = (feat.get('geometry') or {}).get('coordinates')
+        if ts is None or not coords or len(coords) < 2:
+            continue
+        try:
+            pts.append((float(ts), float(coords[1]), float(coords[0])))
+        except (TypeError, ValueError):
+            continue
+    pts.sort(key=lambda p: p[0])
+    return pts
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def parse_iso_utc(value):
+    """接受 '2026-09-25 00:00:00' / '2026-09-25T00:00' / 末尾带 Z 的形式 → epoch 秒。"""
+    if not value:
+        return None
+    s = str(value).strip().replace('T', ' ')
+    if s.endswith('Z'):
+        s = s[:-1].strip()
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def match_official_storm(year, wp_num, epoch, lat, lon):
+    """在 wp_num 附近的几个官方编号里，按"时间接近 + 位置接近"找出真正对应的那个。
+
+    只比距离不够：已经消散的旧台风轨迹可能恰好落在附近，所以先按时间窗口过滤，
+    再在窗口内的点里取距离最近的一个。
+    返回 (官方编号, 英文名, 距离km)；匹配不上返回 None。
+    """
+    if epoch is None or lat is None or lon is None:
+        return None
+    best = None
+    # 优先试 +1（历史上数据源漏编过一号），再试原号，再试相邻编号
+    for delta in (1, 0, -1, 2):
+        num = int(wp_num) + delta
+        if num < 1 or num > 49:
+            continue
+        data = fetch_agora_storm(year, num)
+        pts = agora_points(data)
+        if not pts:
+            continue
+        near = [p for p in pts if abs(p[0] - epoch) <= AGORA_TIME_WINDOW]
+        if not near:
+            continue
+        p = min(near, key=lambda q: haversine_km(lat, lon, q[1], q[2]))
+        d = haversine_km(lat, lon, p[1], p[2])
+        if d <= AGORA_MAX_MATCH_KM and (best is None or d < best[2]):
+            best = (num, agora_name(data), d)
+    return best
 
 
 def get_gzipped(path, st):
@@ -306,8 +427,11 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json({'found': False, 'message': '未找到可用的批次数据'})
 
     def handle_typhoon_name(self, query_str):
-        """代理请求 agora.ex.nii.ac.jp 获取台风英文名
-        track_id 格式: WP092026 → 对应 agora URL: 202609.ja.json
+        """解析台风英文名 + 官方编号。
+
+        带 time/lat/lon 时（前端会带）按位置匹配官方编号，这是推荐路径；
+        没带就退回按 track_id 里的编号直接查（老行为）。
+        track_id 格式: WP252026 / CP902026
         """
         params = urllib.parse.parse_qs(query_str)
         track_id = params.get('track_id', [None])[0]
@@ -333,29 +457,56 @@ class TyphoonHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     storm_num = num_str
             else:
-                self.send_json({'error': 'track_id 格式错误，应为 WPXXYYYY 或 CPXXYYYY'}, 400)
+                # AL/EP 等非西北太平洋编号：气象厅档案里没有这些风暴，
+                # 返回 200 + found=false，别用 400 在前端控制台刷一堆报错
+                if re.match(r'^(AL|EP|IO|SH|WP)\d{6}$', track_id, re.I):
+                    self.send_json({
+                        'track_id': track_id, 'found': False, 'ename': '',
+                        'message': '非西北太平洋编号，不查询命名'
+                    })
+                else:
+                    self.send_json({'error': 'track_id 格式错误，应为 WPXXYYYY 或 CPXXYYYY'}, 400)
                 return
-        url = f'https://agora.ex.nii.ac.jp/digital-typhoon/geojson/wnp/{year}{storm_num}.ja.json'
 
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                name = data.get('properties', {}).get('name', '').strip()
-                self.send_json({
-                    'track_id': track_id,
-                    'year': year,
-                    'storm_num': storm_num,
-                    'ename': name,
-                    'found': bool(name)
-                })
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                self.send_json({'track_id': track_id, 'found': False, 'ename': '', 'message': '该气旋数据尚未入库'})
-            else:
-                self.send_json({'error': f'HTTP {e.code}', 'found': False}, 502)
-        except Exception as e:
-            self.send_json({'error': str(e), 'found': False}, 500)
+        # 1. 有位置信息 → 按轨迹匹配官方编号（编号和名字来自同一个来源，不会再串号）
+        epoch = parse_iso_utc(params.get('time', [None])[0])
+        lat = parse_float(params.get('lat', [None])[0])
+        lon = parse_float(params.get('lon', [None])[0])
+        matched = match_official_storm(year, storm_num, epoch, lat, lon)
+        if matched:
+            num, name, dist = matched
+            self.send_json({
+                'track_id': track_id,
+                'year': year,
+                'storm_num': f'{num:02d}',
+                'official_num': num,
+                'ename': name,
+                'found': bool(name),
+                'matched_by': 'position',
+                'distance_km': round(dist)
+            })
+            return
+
+        # 2. 退回原来的方式：按 track_id 里的编号直接查
+        num = int(storm_num)
+        data = fetch_agora_storm(year, num)
+        if data is None:
+            self.send_json({
+                'track_id': track_id, 'year': year, 'storm_num': storm_num,
+                'found': False, 'ename': '',
+                'matched_by': 'id',
+                'message': '该气旋数据尚未入库'
+            })
+            return
+        name = agora_name(data)
+        self.send_json({
+            'track_id': track_id,
+            'year': year,
+            'storm_num': storm_num,
+            'ename': name,
+            'found': bool(name),
+            'matched_by': 'id'
+        })
 
     def handle_cached(self):
         """返回本地已缓存的CSV文件列表"""
