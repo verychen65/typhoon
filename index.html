@@ -4,7 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>老橘子台风追踪系统</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <meta name="description" content="老橘子台风追踪系统：叠加 DeepMind WeatherLab 的 OPER / WNV3 集合预报，查看热带气旋路径、最大持续风速与最低海平面气压。">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#1a73e8">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://webrd01.is.autonavi.com" crossorigin>
+    <link rel="dns-prefetch" href="https://lib.baomitu.com">
+    <link rel="dns-prefetch" href="https://webrd02.is.autonavi.com">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23007bff' stroke-width='8' stroke-dasharray='30 15' stroke-linecap='round'/><circle cx='50' cy='50' r='15' fill='%23007bff'/></svg>">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+          onerror="this.onerror=null;this.href='https://lib.baomitu.com/leaflet/1.9.4/leaflet.css';" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -21,13 +30,17 @@
 
         /* ===== Header ===== */
         header {
-            height: 52px;
+            /* 用 min-height + flex-wrap 取代固定 52px 单行：
+               1024~1500px 宽的笔电上，原先单行 header 会横向溢出 300px+，
+               右侧的「下载最新 / 清缓存 / 模型切换 / 加载状态」被裁掉且点不到。 */
+            min-height: 52px;
             background: #fff;
             border-bottom: 1px solid #e5e7eb;
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            gap: 16px;
+            flex-wrap: wrap;
+            padding: 8px 20px;
+            gap: 8px 16px;
             flex-shrink: 0;
             z-index: 1000;
         }
@@ -37,6 +50,13 @@
             white-space: nowrap;
         }
         header h1 .icon { margin-right: 6px; }
+        /* 标题 + 台风名 + 纠错按钮归为一组，窄屏时整体换行而不是逐个掉到下一行 */
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
         #typhoonName {
             font-size: 14px;
             font-weight: 600;
@@ -55,11 +75,47 @@
             border-color: #7dd3fc;
             color: #0369a1;
         }
+        #nameCorrectBtn {
+            margin-left: 4px;
+            padding: 3px 7px;
+            font-size: 12px;
+            cursor: pointer;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 6px;
+            color: #c2410c;
+            transition: all 0.15s;
+        }
+        #nameCorrectBtn:hover { background: #ffedd5; border-color: #fb923c; }
+        #nameCorrector {
+            margin-left: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 4px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 6px;
+        }
+        #nameCorrector button {
+            padding: 2px 7px;
+            font-size: 12px;
+            cursor: pointer;
+            background: #fff;
+            border: 1px solid #fed7aa;
+            border-radius: 4px;
+            color: #c2410c;
+        }
+        #nameCorrector button:hover { background: #ffedd5; }
+        .hidden { display: none !important; }
         .import-bar {
             display: flex;
             align-items: center;
-            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px 10px;
             margin-left: auto;
+            min-width: 0;
         }
         .btn {
             padding: 6px 16px;
@@ -123,8 +179,8 @@
             opacity: 0.4;
             cursor: not-allowed;
         }
-        .toggle-btn.model-btn.active.fnv3 { background: #ea4335; }
-        .toggle-btn.model-btn.active.genc { background: #1a73e8; }
+        .toggle-btn.model-btn.active.oper { background: #fbbc04; }
+        .toggle-btn.model-btn.active.wnv3 { background: #1a73e8; }
 
         /* ===== Main ===== */
         main {
@@ -151,6 +207,33 @@
             background: rgba(26, 115, 232, 0.05);
         }
         .drop-content { text-align: center; color: #6b7280; }
+        /* 首次进入时的加载提示：避免数据还在下载时误以为要先手动拖 CSV */
+        .boot-status {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 18px;
+            padding: 7px 14px;
+            font-size: 13px;
+            color: #0369a1;
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 999px;
+        }
+        .boot-status.show { display: inline-flex; }
+        .boot-spinner {
+            width: 13px;
+            height: 13px;
+            border: 2px solid #bae6fd;
+            border-top-color: #0284c7;
+            border-radius: 50%;
+            animation: boot-spin 0.8s linear infinite;
+        }
+        @keyframes boot-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .boot-spinner { animation: none; }
+        }
         .drop-content .upload-icon { font-size: 48px; margin-bottom: 16px; }
         .drop-content h2 { font-size: 18px; font-weight: 500; color: #374151; margin-bottom: 8px; }
         .drop-content p { font-size: 13px; margin-bottom: 4px; }
@@ -167,34 +250,15 @@
         }
         .data-view.active { display: flex; }
 
-        /* View tabs */
-        .view-tabs {
-            display: flex;
-            gap: 0;
-            background: #fff;
-            border-bottom: 1px solid #e5e7eb;
-            flex-shrink: 0;
-        }
-        .view-tab {
-            padding: 8px 20px;
-            font-size: 13px;
-            color: #6b7280;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.15s;
-        }
-        .view-tab:hover { color: #374151; }
-        .view-tab.active {
-            color: #1a73e8;
-            border-bottom-color: #1a73e8;
-            font-weight: 600;
-        }
-        .tab-content {
+        /* Map view */
+        .map-view {
             flex: 1;
             overflow: hidden;
-            display: none;
+            display: flex;
+            flex-direction: row;
         }
-        .tab-content.active { display: flex; }
+
+        .chart-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
 
         /* Map */
         .map-container {
@@ -262,8 +326,8 @@
         }
         .stat-label { font-size: 10px; color: #9ca3af; margin-bottom: 2px; }
         .stat-value { font-size: 13px; font-weight: 600; color: #1f2937; }
-        .stat-value.fnv3 { color: #ea4335; }
-        .stat-value.genc { color: #1a73e8; }
+        .stat-value.oper { color: #fbbc04; }
+        .stat-value.wnv3 { color: #1a73e8; }
 
         .chart-container {
             position: relative;
@@ -397,18 +461,39 @@
 
             /* Header: compact */
             header {
+                min-height: 0;
                 height: auto;
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
                 padding: 6px 10px;
-                gap: 6px;
+                gap: 6px 8px;
             }
             header h1 { font-size: 13px; }
+            /* 标题、台风名、纠错按钮挤在同一行：标题不压缩，名字过长时省略号截断 */
+            .brand {
+                flex: 1 1 100%;
+                flex-wrap: nowrap;
+                gap: 8px;
+            }
+            .brand h1 { flex: 0 0 auto; }
+            #typhoonName {
+                flex: 1 1 auto;
+                margin-left: 0;
+                font-size: 12px;
+                padding: 3px 8px;
+                max-width: none;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            #nameCorrectBtn { font-size: 11px; padding: 2px 6px; }
             .import-bar {
+                flex: 1 1 100%;
                 margin-left: 0;
                 flex-wrap: wrap;
                 gap: 4px;
                 align-items: center;
+                justify-content: flex-start;
             }
             .import-bar .btn { padding: 4px 8px; font-size: 11px; }
             .import-bar > span[style*="color:#d1d5db"] { display: none; }
@@ -420,7 +505,7 @@
 
             /* Main: stack vertically */
             main { flex-direction: column; }
-            .tab-content { flex-direction: column; }
+            .map-view { flex-direction: column; }
             .map-container { flex: 1; min-height: 0; width: 100%; }
 
             /* Sidebar: right drawer */
@@ -545,11 +630,42 @@
             .stats-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
+
+    <!-- 依赖库提前声明：让预加载扫描器一拿到 <head> 就开始下载，不必等 108KB 的正文解析完；
+         用 defer 保证在 window.load（init 触发点）之前一定执行完毕，同时不阻塞首屏渲染。 -->
+    <script>
+        // CDN 兜底表：主源（jsDelivr）不可用时自动切换到国内镜像（360 / baomitu）
+        window.__CDN_FALLBACK__ = {
+            L:     'https://lib.baomitu.com/leaflet/1.9.4/leaflet.js',
+            Chart: 'https://lib.baomitu.com/Chart.js/4.4.0/chart.umd.min.js',
+            Papa:  'https://lib.baomitu.com/PapaParse/5.4.1/papaparse.min.js'
+        };
+        window.__cdnRetry = function (el, globalName) {
+            var alt = window.__CDN_FALLBACK__[globalName];
+            if (!alt || el.dataset.fallback) return;
+            el.dataset.fallback = '1';
+            console.warn('主 CDN 加载失败，切换备用源: ' + alt);
+            var s = document.createElement('script');
+            s.src = alt;
+            document.head.appendChild(s);
+        };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" onerror="__cdnRetry(this,'L')"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onerror="__cdnRetry(this,'Chart')"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" onerror="__cdnRetry(this,'Papa')"></script>
 </head>
 <body>
     <header>
-        <h1><span class="icon">🌀</span>老橘子台风追踪系统</h1>
-        <span id="typhoonName" onclick="editTyphoonName()" title="点击编辑台风名称">--</span>
+        <div class="brand">
+            <h1><span class="icon">🌀</span>老橘子台风追踪系统</h1>
+            <span id="typhoonName" onclick="editTyphoonName()" title="点击编辑台风名称">--</span>
+            <button id="nameCorrectBtn" onclick="toggleNameCorrector()" title="纠错：在候选名字里前后调整" aria-label="纠错台风名字">✎</button>
+            <span id="nameCorrector" class="hidden">
+                <button onclick="stepTyphoonName(-1)" title="上一个名字" aria-label="上一个候选名字">◀</button>
+                <button onclick="stepTyphoonName(1)" title="下一个名字" aria-label="下一个候选名字">▶</button>
+                <button onclick="resetTyphoonName()" title="恢复自动识别" aria-label="恢复自动识别">↺</button>
+            </span>
+        </div>
         <div class="import-bar">
             <input type="file" id="fileInput" multiple accept=".csv" style="display:none;">
             <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">导入 CSV</button>
@@ -569,16 +685,19 @@
                 <button class="toggle-btn" id="modeMean" onclick="setViewMode('mean')">集合平均对比</button>
             </div>
             <div class="toggle-group" id="modelToggle">
-                <button class="toggle-btn model-btn fnv3 active" onclick="setModel('FNV3')">FNV3</button>
-                <button class="toggle-btn model-btn genc" onclick="setModel('GENC')">GENC</button>
+                <button class="toggle-btn model-btn oper active" onclick="setModel('OPER')">OPER</button>
+                <button class="toggle-btn model-btn wnv3" onclick="setModel('WNV3')">WNV3</button>
             </div>
-            <span id="fileStatus"></span>
+            <span id="fileStatus" role="status" aria-live="polite"></span>
         </div>
     </header>
 
     <main>
         <div id="dropZone" class="drop-zone">
             <div class="drop-content">
+                <p id="bootStatus" class="boot-status">
+                    <span class="boot-spinner" aria-hidden="true"></span>正在加载最新预报数据…
+                </p>
                 <div class="upload-icon">📁</div>
                 <h2>拖拽 CSV 文件到此处</h2>
                 <p>或点击右上角"导入 CSV"按钮选择文件</p>
@@ -588,10 +707,7 @@
         </div>
 
         <div id="dataView" class="data-view">
-            <div class="view-tabs">
-                <div class="view-tab active" onclick="switchTab('mapView', this)">🗺️ 地图视图</div>
-            </div>
-            <div id="mapView" class="tab-content active">
+            <div id="mapView" class="map-view">
                 <div class="map-container">
                     <div id="map"></div>
                     <button class="sidebar-toggle" onclick="toggleSidebar()" id="sidebarToggle">📊</button>
@@ -636,25 +752,22 @@
     </main>
 
     <footer id="timeControls">
-        <button class="time-btn" id="prevBtn" onclick="prevStep()">&#9664;</button>
-        <button class="time-btn play-btn" id="playBtn" onclick="togglePlay()">&#9654;</button>
-        <button class="time-btn" id="nextBtn" onclick="nextStep()">&#9654;</button>
-        <input type="range" id="timeSlider" min="0" max="0" value="0" oninput="onSliderChange()">
+        <button class="time-btn" id="prevBtn" onclick="prevStep()" title="上一步（← 键）" aria-label="上一步">&#9664;</button>
+        <button class="time-btn play-btn" id="playBtn" onclick="togglePlay()" title="播放 / 暂停（空格键）" aria-label="播放或暂停">&#9654;</button>
+        <button class="time-btn" id="nextBtn" onclick="nextStep()" title="下一步（→ 键）" aria-label="下一步">&#9654;</button>
+        <input type="range" id="timeSlider" min="0" max="0" value="0" oninput="onSliderChange()" title="预报时效" aria-label="预报时效">
         <div class="time-label" id="timeLabel">
             <span class="lead-time">T+0h</span><br>
             <span class="valid-time"></span>
         </div>
     </footer>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
     // ==================== Global State ====================
     // Multi-model data storage
     let modelData = {
-        FNV3: { ensemble: null, ensemble_mean: null },
-        GENC: { ensemble: null, ensemble_mean: null }
+        OPER: { ensemble: null, ensemble_mean: null },
+        WNV3: { ensemble: null, ensemble_mean: null }
     };
 
     // ==================== Typhoon Name Resolution ====================
@@ -669,6 +782,27 @@
     //
     // To add a new storm: just add { en: 'XXX', zh: 'XXX' } to ENAME_TO_ZH.
     // The trackId → ename resolution happens at runtime via the API.
+
+    // ==================== 台风编号自动纠偏 ====================
+    // WeatherLab(DeepMind) 漏编第11号台风 → 其之后的 WP 编号整体偏移 +1
+    // 真实官方序号 = WP编号 + 偏移；WP01–WP10 不受影响（漏编发生在第11号）
+    const WP_NUMBER_OFFSET = 1;
+    function getRealStormNum(trackId) {
+        const m = String(trackId).match(/WP(\d{2})(\d{4})/i);
+        if (!m) return null;
+        const n = parseInt(m[1], 10);
+        return n >= 12 ? n + WP_NUMBER_OFFSET : n;
+    }
+
+    // ==================== Track ID Override ====================
+    // 当数据源编号与实际不符时，强制指定显示名称
+    // 仅作"名字兜底"：API 无法解析该 WP 编号英文名时强制指定中文名
+    // 序号不再逐条硬编码，由全局 WP_NUMBER_OFFSET 自动纠偏（新增台风无需再手动加）
+    const TRACK_ID_OVERRIDE = {
+        'WP122026': { ename: 'DOLPHIN', zh: '白海豚' },
+        'WP132026': { ename: 'KUJIRA',  zh: '鲸鱼' },
+        'WP172026': { ename: 'SAUDEL',  zh: '沙德尔' },
+    };
 
     const ENAME_TO_ZH = {
         // === 2026 typhoons (verified via agora API + 百度百科) ===
@@ -744,10 +878,12 @@
 
         // Convert CP format (e.g. CP902026) to WP format (WP092026) for agora API
         const normalized = convertTrackIdFormat(trackId);
-        // Use normalized for cache key to avoid duplicate fetches
-        if (typhoonNameCache[normalized] && typhoonNameCache[normalized].ename) return;
-        // Also cache if already failed (empty ename)
-        if (typhoonNameCache[normalized] && typhoonNameCache[normalized]._failed) return;
+        // 同一编号全局只请求一次：已成功、已失败、正在请求中，都直接返回。
+        // 原先只挡了「已成功」和「已失败」两种情况，请求返回之前每次重绘都会重新发起，
+        // 而 4 个 CSV 会相继触发重绘、每次响应又再触发一次，同一个编号会被打成几十次请求。
+        const cached = typhoonNameCache[normalized];
+        if (cached && (cached.ename || cached._failed || cached._pending)) return;
+        typhoonNameCache[normalized] = { _pending: true };
 
         fetch('/api/typhoon-name?track_id=' + encodeURIComponent(normalized))
             .then(r => r.json())
@@ -763,13 +899,24 @@
                 }
                 // Update display if this is the current track (match original or normalized)
                 if (trackId === currentTrackId || normalized === currentTrackId) updateTyphoonNameDisplay();
-                populateTrackSelector();
+                scheduleNameRefresh();
             })
             .catch(() => {
                 // Network failure: cache to avoid retrying
                 typhoonNameCache[normalized] = { ename: '', zh: '', _failed: true };
-                populateTrackSelector();
+                scheduleNameRefresh();
             });
+    }
+
+    // 名字陆续返回时合并刷新：7 个编号原本会触发 7 次整表重建，这里压成一次
+    let nameRefreshScheduled = false;
+    function scheduleNameRefresh() {
+        if (nameRefreshScheduled) return;
+        nameRefreshScheduled = true;
+        setTimeout(() => {
+            nameRefreshScheduled = false;
+            populateTrackSelector();
+        }, 0);
     }
 
     /**
@@ -790,39 +937,46 @@
 
         const normalized = convertTrackIdFormat(trackId);
 
-        // 1. API-fetched name (via fetchTyphoonName)
-        if (typhoonNameCache[normalized]) {
-            const { ename, zh } = typhoonNameCache[normalized];
-            if (zh && ename) return zh + ' (' + capitalize(ename) + ')';
-            if (ename && ENAME_TO_ZH[ename]) return ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
-            if (ename) return capitalize(ename);
-        }
-
-        // 2. 检查 localStorage（用户自定义名称）— 使用原始 ID 保存
+        // 0. 手动纠错最高优先级（localStorage）：纠错按钮/点击编辑手动设定的名字
         try {
             const saved = localStorage.getItem('typhoon_name_' + trackId) || localStorage.getItem('typhoon_name_' + normalized);
             if (saved) {
-                // 如果用户保存的是完整格式，直接使用
                 if (saved.includes('(')) return saved;
-                // 用户保存的是纯中文，尝试反查英文名
                 for (const [ename, zh] of Object.entries(ENAME_TO_ZH)) {
-                    if (zh === saved) {
-                        return zh + ' (' + capitalize(ename) + ')';
-                    }
+                    if (zh === saved) return zh + ' (' + capitalize(ename) + ')';
                 }
-                // 找不到英文名，返回用户保存的中文
                 return saved;
             }
         } catch(e) {}
 
+        // 1. 检查强制覆盖（数据源编号错误时使用）
+        if (TRACK_ID_OVERRIDE[normalized]) {
+            const { ename, zh } = TRACK_ID_OVERRIDE[normalized];
+            const realNum = getRealStormNum(normalized);
+            const year = normalized.slice(4); // '2026'
+            const seq = realNum ? (year + '年第' + realNum + '号台风') : '';
+            return seq + zh + ' (' + capitalize(ename) + ')';
+        }
+
+        // 2. API-fetched name (via fetchTyphoonName)
+        if (typhoonNameCache[normalized]) {
+            const { ename, zh } = typhoonNameCache[normalized];
+            const realNum = getRealStormNum(normalized);
+            const year = normalized.slice(4); // '2026'
+            const seq = realNum ? (year + '年第' + realNum + '号台风') : '';
+            if (zh && ename) return seq + zh + ' (' + capitalize(ename) + ')';
+            if (ename && ENAME_TO_ZH[ename]) return seq + ENAME_TO_ZH[ename] + ' (' + capitalize(ename) + ')';
+            if (ename) return seq + capitalize(ename);
+        }
+
         // 3. 尝试触发 API 获取（will update display when done）
         fetchTyphoonName(trackId);
 
-        // 4. Fallback: parse storm number
+        // 4. Fallback: parse storm number (自动纠偏偏移)
         const m = normalized.match(/WP(\d{2})(\d{4})/);
         if (m) {
-            const stormNum = parseInt(m[1], 10);
-            return m[2] + '年第' + stormNum + '号气旋';
+            const realNum = getRealStormNum(normalized);
+            return m[2] + '年第' + realNum + '号气旋';
         }
         return trackId;
     }
@@ -854,8 +1008,60 @@
         if (hasAnyData()) updateTimeStep();
     }
 
+    // ==================== 台风名字手动纠错 ====================
+    // 2026 年官方命名表顺序（与 ENAME_TO_ZH 的 2026 部分保持一致）
+    const TYPHOON_NAME_SEQUENCE = [
+        { ename: 'NOKAEN',   zh: '洛鞍' },   { ename: 'PENHA',    zh: '西望洋' },
+        { ename: 'NURI',     zh: '鹦鹉' },   { ename: 'SINLAKU',  zh: '森拉克' },
+        { ename: 'HAGUPIT',  zh: '黑格比' }, { ename: 'JANGMI',   zh: '蔷薇' },
+        { ename: 'MEKKHALA', zh: '米克拉' }, { ename: 'HIGOS',    zh: '海高斯' },
+        { ename: 'BAVI',     zh: '巴威' },   { ename: 'MAYSAK',   zh: '美莎克' },
+        { ename: 'HAISHEN',  zh: '海神' },   { ename: 'NOUL',     zh: '红霞' },
+        { ename: 'DOLPHIN',  zh: '白海豚' }, { ename: 'KUJIRA',   zh: '鲸鱼' },
+        { ename: 'CHANHOM',  zh: '灿鸿' },   { ename: 'PEILOU',   zh: '琵鹭' },
+        { ename: 'NANGKA',   zh: '浪卡' },   { ename: 'SAUDEL',   zh: '沙德尔' },
+        { ename: 'NARRA',    zh: '紫檀' },   { ename: 'GAENARI',  zh: '简拉维' },
+        { ename: 'ATSANI',   zh: '艾莎尼' }, { ename: 'ETAU',     zh: '艾涛' },
+        { ename: 'BANGLANG', zh: '班朗' },   { ename: 'KROVANH',  zh: '科罗旺' },
+        { ename: 'DUJUAN',   zh: '杜鹃' },   { ename: 'SURIGAE',  zh: '舒力基' },
+    ];
+
+    function toggleNameCorrector() {
+        const el = document.getElementById('nameCorrector');
+        if (el) el.classList.toggle('hidden');
+    }
+
+    // 提取当前显示的中文名（去掉"第N号台风"前缀和"(EN)"后缀）
+    function getCurrentZh(trackId) {
+        const cur = getTyphoonDisplayName(trackId) || '';
+        return cur.replace(/^20\d{2}年第\d+号台风/, '')
+                  .replace(/\s*[（(].*?[)）]\s*$/, '')
+                  .trim();
+    }
+
+    // dir = -1 上一个 / +1 下一个；在候选序列里循环切换并保存
+    function stepTyphoonName(dir) {
+        if (!currentTrackId) return;
+        const curZh = getCurrentZh(currentTrackId);
+        let idx = TYPHOON_NAME_SEQUENCE.findIndex(x => x.zh === curZh);
+        if (idx < 0) idx = 0;  // 当前不在序列中，从头开始
+        idx = (idx + dir + TYPHOON_NAME_SEQUENCE.length) % TYPHOON_NAME_SEQUENCE.length;
+        const picked = TYPHOON_NAME_SEQUENCE[idx];
+        const val = picked.zh + ' (' + capitalize(picked.ename) + ')';
+        try { localStorage.setItem('typhoon_name_' + currentTrackId, val); } catch(e) {}
+        updateTyphoonNameDisplay();
+        if (hasAnyData()) updateTimeStep();
+    }
+
+    function resetTyphoonName() {
+        if (!currentTrackId) return;
+        try { localStorage.removeItem('typhoon_name_' + currentTrackId); } catch(e) {}
+        updateTyphoonNameDisplay();
+        if (hasAnyData()) updateTimeStep();
+    }
+
     let currentViewMode = 'ensemble';  // 'ensemble' or 'mean'
-    let currentModel = 'FNV3';          // 'FNV3' or 'GENC' (for ensemble mode)
+    let currentModel = 'OPER';          // 'OPER' or 'WNV3' (for ensemble mode)
 
     // Active tracks (references that get updated on mode/model switch)
     let tracks = {};
@@ -864,6 +1070,30 @@
     let currentLeadTimeIndex = 0;
     let isPlaying = false;
     let playInterval = null;
+    let prefsApplied = false;   // 偏好（视图/模型/气旋）只在首次进入数据视图时套用一次
+
+    // ==================== 用户偏好 ====================
+    // 刷新或重新进入页面时恢复上次的视图模式 / 模型 / 气旋，省掉每次重新点一遍
+    const PREFS_KEY = 'laojuzi-typhoon-prefs-v1';
+    function loadPrefs() {
+        try {
+            const raw = localStorage.getItem(PREFS_KEY);
+            return raw ? (JSON.parse(raw) || {}) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+    function savePrefs() {
+        try {
+            localStorage.setItem(PREFS_KEY, JSON.stringify({
+                viewMode: currentViewMode,
+                model: currentModel,
+                trackId: currentTrackId
+            }));
+        } catch (e) {
+            /* 隐私模式等场景下写入失败，忽略即可 */
+        }
+    }
 
     let map = null;
     let mapLayers = { tracks: [], medianSegments: [], markers: [], initMarker: null };
@@ -872,8 +1102,8 @@
     let downloadAbortController = null;
 
     const MODEL_COLORS = {
-        FNV3: '#ea4335',
-        GENC: '#1a73e8'
+        OPER: '#fbbc04',
+        WNV3: '#1a73e8'
     };
 
     // ==================== Utilities ====================
@@ -994,9 +1224,9 @@
     }
 
     function parseCSVText(csvText, filename) {
-        let model = 'FNV3', type = 'ensemble';
-        if (filename.startsWith('GENC')) model = 'GENC';
-        else if (filename.startsWith('FNV3')) model = 'FNV3';
+        let model = 'OPER', type = 'ensemble';
+        if (filename.startsWith('WNV3')) model = 'WNV3';
+        else if (filename.startsWith('OPER')) model = 'OPER';
         if (filename.includes('_mean_')) type = 'ensemble_mean';
 
         const results = Papa.parse(csvText, {
@@ -1016,7 +1246,7 @@
     }
 
     // ==================== Data Processing ====================
-    function processData(rawRows, model, type) {
+    function buildTracksFromRows(rawRows) {
         if (!rawRows || rawRows.length === 0) throw new Error('无数据');
 
         const first = rawRows[0];
@@ -1070,17 +1300,57 @@
         });
 
         newTrackIds.forEach(tid => {
-            newTracks[tid].sampleIds.sort((a, b) => a - b);
-            newTracks[tid].leadTimes.sort((a, b) => a - b);
-            newTracks[tid].sampleIds.forEach(sid => {
-                newTracks[tid].samples[sid].sort((a, b) => a.leadTimeHours - b.leadTimeHours);
+            const t = newTracks[tid];
+            t.sampleIds.sort((a, b) => a - b);
+            t.sampleIds.forEach(sid => {
+                t.samples[sid].sort((a, b) => a.leadTimeHours - b.leadTimeHours);
+                t.samples[sid] = sanitizeSamplePath(t.samples[sid]);
             });
+            // 截断后没剩下点的成员直接丢掉，并按剩余点重算时效并集
+            t.sampleIds = t.sampleIds.filter(sid => t.samples[sid].length > 0);
+            const leadSet = new Set();
+            t.sampleIds.forEach(sid => t.samples[sid].forEach(p => leadSet.add(p.leadTimeHours)));
+            t.leadTimes = Array.from(leadSet).sort((a, b) => a - b);
         });
 
-        if (newTrackIds.length === 0) throw new Error('无有效气旋数据');
+        const keptTrackIds = newTrackIds.filter(tid => newTracks[tid].sampleIds.length > 0);
+        if (keptTrackIds.length === 0) throw new Error('无有效气旋数据');
 
-        // Store in modelData
-        modelData[model][type] = { tracks: newTracks, trackIds: newTrackIds };
+        return { tracks: newTracks, trackIds: keptTrackIds };
+    }
+
+    // 6 小时内的最大位移（度）。真实气旋再快也不可能超过这个量级，
+    // 超过说明数据源把不同气旋的路径错误地"配对"到了同一个成员上。
+    const MAX_STEP_DEG_PER_6H = 15;
+
+    /**
+     * 清洗单个成员的路径：丢掉坐标非法的点，并在出现不可能的跳变处截断。
+     * 数据源里 WNV3 成员偶尔会瞬移几千公里（例如 130°E 的路径里冒出一个 -21°），
+     * 不处理的话地图上会画出一条横穿全图的假轨迹，也会把"集合中位数"带偏。
+     */
+    function sanitizeSamplePath(points) {
+        const out = [];
+        for (const p of points) {
+            const lat = Number(p.lat), lon = Number(p.lon);
+            if (!isFinite(lat) || !isFinite(lon)) continue;
+            if (Math.abs(lat) > 90 || Math.abs(lon) > 360) continue;
+
+            if (out.length > 0) {
+                const prev = out[out.length - 1];
+                const gap = Math.max(1, (p.leadTimeHours - prev.leadTimeHours) || 6) / 6;
+                const limit = MAX_STEP_DEG_PER_6H * gap;
+                const dLat = Math.abs(lat - prev.lat);
+                // 经度取最短弧，跨日界线的正常跳变（179 → -179）不算异常
+                const dLon = Math.abs(((lon - prev.lon + 540) % 360) - 180);
+                if (dLat > limit || dLon > limit) break;   // 从这里截断，后面的点不再采用
+            }
+            out.push(p);
+        }
+        return out;
+    }
+
+    function processData(rawRows, model, type) {
+        modelData[model][type] = buildTracksFromRows(rawRows);
     }
 
     function hasAnyData() {
@@ -1088,29 +1358,43 @@
     }
 
     function hasEnsembleData() {
-        return modelData.FNV3.ensemble || modelData.GENC.ensemble;
+        return modelData.OPER.ensemble || modelData.WNV3.ensemble;
     }
 
     function hasMeanData() {
-        return modelData.FNV3.ensemble_mean || modelData.GENC.ensemble_mean;
+        return modelData.OPER.ensemble_mean || modelData.WNV3.ensemble_mean;
     }
 
     function activateDataView() {
         document.getElementById('dropZone').style.display = 'none';
         document.getElementById('dataView').classList.add('active');
         document.getElementById('timeControls').classList.add('active');
+        hideBootStatus();
 
         // Decide default view mode - 默认集合平均对比
-        if (hasMeanData()) {
+        // 仅首次进入时套用上次使用的偏好，后续（如切换到新批次）保留用户当前选择
+        const prefs = prefsApplied ? {} : loadPrefs();
+        prefsApplied = true;
+
+        if (prefs.viewMode === 'ensemble' && hasEnsembleData()) {
+            currentViewMode = 'ensemble';
+        } else if (prefs.viewMode === 'mean' && hasMeanData()) {
+            currentViewMode = 'mean';
+        } else if (hasMeanData()) {
             currentViewMode = 'mean';
         } else {
             currentViewMode = 'ensemble';
         }
 
         // Decide default model for ensemble mode
-        if (!modelData[currentModel].ensemble) {
-            currentModel = modelData.GENC.ensemble ? 'GENC' : 'FNV3';
+        if (prefs.model && modelData[prefs.model] && modelData[prefs.model].ensemble) {
+            currentModel = prefs.model;
+        } else if (!modelData[currentModel].ensemble) {
+            currentModel = modelData.WNV3.ensemble ? 'WNV3' : 'OPER';
         }
+
+        // 记住上次看的气旋；不存在时 populateTrackSelector 会自动回退
+        if (prefs.trackId) currentTrackId = prefs.trackId;
 
         updateViewModeUI();
 
@@ -1152,11 +1436,11 @@
             modeMean.classList.remove('active');
             modelToggle.style.display = 'flex';
             // Update model buttons
-            document.querySelector('.toggle-btn.model-btn.fnv3').classList.toggle('active', currentModel === 'FNV3');
-            document.querySelector('.toggle-btn.model-btn.genc').classList.toggle('active', currentModel === 'GENC');
-            document.querySelector('.toggle-btn.model-btn.fnv3').disabled = !modelData.FNV3.ensemble;
-            document.querySelector('.toggle-btn.model-btn.genc').disabled = !modelData.GENC.ensemble;
-            const modelColor = currentModel === 'FNV3' ? '#ea4335' : '#1a73e8';
+            document.querySelector('.toggle-btn.model-btn.oper').classList.toggle('active', currentModel === 'OPER');
+            document.querySelector('.toggle-btn.model-btn.wnv3').classList.toggle('active', currentModel === 'WNV3');
+            document.querySelector('.toggle-btn.model-btn.oper').disabled = !modelData.OPER.ensemble;
+            document.querySelector('.toggle-btn.model-btn.wnv3').disabled = !modelData.WNV3.ensemble;
+            const modelColor = currentModel === 'OPER' ? '#fbbc04' : '#1a73e8';
             windLegend.innerHTML =
                 '<div class="legend-item"><div class="legend-color" style="background:rgba(100,100,100,0.2);border:1px solid rgba(100,100,100,0.4)"></div>集合成员</div>' +
                 '<div class="legend-item"><div class="legend-color" style="background:' + modelColor + '"></div>' + currentModel + '</div>';
@@ -1166,8 +1450,8 @@
             modeEnsemble.classList.remove('active');
             modelToggle.style.display = 'none';
             windLegend.innerHTML =
-                '<div class="legend-item"><div class="legend-color" style="background:#ea4335"></div>FNV3</div>' +
-                '<div class="legend-item"><div class="legend-color" style="background:#1a73e8"></div>GENC</div>';
+                '<div class="legend-item"><div class="legend-color" style="background:#fbbc04"></div>OPER</div>' +
+                '<div class="legend-item"><div class="legend-color" style="background:#1a73e8"></div>WNV3</div>';
             windLegend.style.display = '';
         }
     }
@@ -1179,6 +1463,7 @@
         updateViewModeUI();
         updateActiveData();
         populateTrackSelector();
+        savePrefs();
         currentLeadTimeIndex = 0;
         if (isPlaying) togglePlay();
         renderAll();
@@ -1190,6 +1475,7 @@
         updateViewModeUI();
         updateActiveData();
         populateTrackSelector();
+        savePrefs();
         currentLeadTimeIndex = 0;
         if (isPlaying) togglePlay();
         renderAll();
@@ -1201,8 +1487,8 @@
             tracks = data ? data.tracks : {};
             trackIds = data ? data.trackIds : [];
         } else {
-            // Mean mode: use FNV3 as primary, GENC as secondary
-            const primary = modelData.FNV3.ensemble_mean || modelData.GENC.ensemble_mean;
+            // Mean mode: use first available as primary
+            const primary = modelData.OPER.ensemble_mean || modelData.WNV3.ensemble_mean;
             tracks = primary ? primary.tracks : {};
             trackIds = primary ? primary.trackIds : [];
         }
@@ -1210,23 +1496,22 @@
 
     function getSecondaryMeanTracks() {
         if (currentViewMode !== 'mean') return null;
-        // If primary is FNV3, secondary is GENC, and vice versa
-        if (modelData.FNV3.ensemble_mean && modelData.GENC.ensemble_mean) {
-            return modelData.GENC.ensemble_mean.tracks;
+        if (modelData.OPER.ensemble_mean && modelData.WNV3.ensemble_mean) {
+            return modelData.WNV3.ensemble_mean.tracks;
         }
         return null;
     }
 
     function getPrimaryMeanModel() {
-        if (modelData.FNV3.ensemble_mean) return 'FNV3';
-        if (modelData.GENC.ensemble_mean) return 'GENC';
-        return 'FNV3';
+            if (modelData.OPER.ensemble_mean) return 'OPER';
+        if (modelData.WNV3.ensemble_mean) return 'WNV3';
+        return 'OPER';
     }
 
     function getSecondaryMeanModel() {
         const primary = getPrimaryMeanModel();
-        if (primary === 'FNV3' && modelData.GENC.ensemble_mean) return 'GENC';
-        if (primary === 'GENC' && modelData.FNV3.ensemble_mean) return 'FNV3';
+        if (primary === 'OPER' && modelData.WNV3.ensemble_mean) return 'WNV3';
+        if (primary === 'WNV3' && modelData.OPER.ensemble_mean) return 'OPER';
         return null;
     }
 
@@ -1278,28 +1563,59 @@
         }
 
         // Fit bounds
-        const allLatLngs = track.sampleIds.flatMap(sid => track.samples[sid].map(p => [p.lat, p.lon]));
+        // 只按中位数路径取景，而不是把 50 个集合成员的点全丢进去：
+        // 成员穿过 ±180° 时经度会写成 -175 这种值，全体点围成的范围接近 360° 经度，
+        // fitBounds 会把地图缩到全球视图，而高德底图在那种层级没有瓦片，整张图变成空白。
+        const fitLatLngs = medianPoints.map(p => [p.lat, p.lon]);
         const secTracks = getSecondaryMeanTracks();
         if (secTracks && secTracks[currentTrackId]) {
             const secTrack = secTracks[currentTrackId];
-            allLatLngs.push(...secTrack.sampleIds.flatMap(sid => secTrack.samples[sid].map(p => [p.lat, p.lon])));
+            const secMedian = secTrack.median || computeMedian(secTrack);
+            fitLatLngs.push(...secMedian.map(p => [p.lat, p.lon]));
         }
-        if (allLatLngs.length > 0) {
-            map.fitBounds(L.latLngBounds(allLatLngs), { padding: [50, 50] });
+        if (fitLatLngs.length === 0) {
+            // 没有中位数路径时（理论上不会发生）再退回全部点
+            track.sampleIds.forEach(sid => track.samples[sid].forEach(p => fitLatLngs.push([p.lat, p.lon])));
+        }
+        if (fitLatLngs.length > 0) {
+            // 用 2%~98% 分位数取景，而不是最小/最大极值：
+            // 个别时效上数据源给出的坐标会明显离群（例如 130°E 的路径里混进一个 -21°），
+            // 只要有一个离群点，fitBounds 就会把地图缩到看不清的全球视图。
+            map.fitBounds(L.latLngBounds(robustBoundsCorners(fitLatLngs)), { padding: [50, 50] });
         }
 
         updateMapMarkers();
     }
 
     function computeMedian(track) {
+        // 报数成员太少时"中位数"没有意义：数据源在预报后段经常只剩 1~2 个成员
+        // （WP252026 的 50 个成员到 336h 只剩 2 个），那时算出来的中位数等于
+        // 直接采信某个成员的走向，末端会被带得乱跑。这里要求至少有 3 个成员。
+        const minMembers = Math.min(3, track.sampleIds.length);
+        // 经度解缠参考值：成员跨过 180° 后经度会写成 -175 这种值，和 179 混在一起
+        // 直接排序取中位数，会把中位数取到地球另一侧（实测出现过 -21.3°）。
+        // 每个时效都相对上一个时效的中位数把成员经度折到同一侧，再取中位数。
+        let prevLon = null;
         return track.leadTimes.map(lt => {
             const pts = track.sampleIds
                 .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
                 .filter(p => p);
-            if (pts.length === 0) return null;
+            if (pts.length < minMembers) return null;
+
+            const lons = pts.map(p => {
+                let lon = p.lon;
+                if (prevLon !== null) {
+                    while (lon - prevLon > 180) lon -= 360;
+                    while (lon - prevLon < -180) lon += 360;
+                }
+                return lon;
+            });
+            const lonMedian = median(lons);
+            prevLon = lonMedian;   // 继续用解缠后的值做参考，保持在同一侧
+
             return {
                 lat: median(pts.map(p => p.lat)),
-                lon: median(pts.map(p => p.lon)),
+                lon: ((lonMedian + 540) % 360) - 180,
                 wind: median(pts.map(p => p.wind)),
                 pressure: median(pts.map(p => p.pressure)),
                 leadTimeHours: lt
@@ -1307,12 +1623,47 @@
         }).filter(p => p && p.lat != null && p.lon != null);
     }
 
+    /**
+     * 取一组 [[lat, lon], ...] 的分位数包围盒角点，避免单个离群点决定取景范围。
+     */
+    function robustBoundsCorners(latLngs) {
+        if (latLngs.length < 5) return latLngs;
+        const lats = latLngs.map(c => c[0]).sort((a, b) => a - b);
+        const lons = latLngs.map(c => c[1]).sort((a, b) => a - b);
+        const pick = (arr, f) => arr[Math.round(f * (arr.length - 1))];
+        return [
+            [pick(lats, 0.02), pick(lons, 0.02)],
+            [pick(lats, 0.98), pick(lons, 0.98)]
+        ];
+    }
+
+    /**
+     * 把一条路径的经度解缠（unwrap）成连续值。
+     * 数据里经度规范在 [-180, 180]，成员跨过 180° 时会出现 179.3 → -175.2 的跳变，
+     * Leaflet 会照着这两个点画一条横穿整张地图的直线。这里让相邻点差值保持在 ±180° 内，
+     * 跨日界线的那一段就变成 179.3 → 184.8，线自然画到地图右侧以外。
+     */
+    function unwrapTrackLatLngs(points) {
+        const out = [];
+        let prevLon = null;
+        for (const p of points) {
+            let lon = p.lon;
+            if (prevLon !== null) {
+                while (lon - prevLon > 180) lon -= 360;
+                while (lon - prevLon < -180) lon += 360;
+            }
+            prevLon = lon;
+            out.push([p.lat, lon]);
+        }
+        return out;
+    }
+
     function renderEnsembleMap(track, medianPoints, color) {
         // Draw ensemble member tracks
         track.sampleIds.forEach(sid => {
             const points = track.samples[sid];
             if (points.length < 1) return;
-            const latlngs = points.map(p => [p.lat, p.lon]);
+            const latlngs = unwrapTrackLatLngs(points);
             const maxWind = Math.max(...points.map(p => p.wind || 0));
             const c = getWindColor(maxWind);
 
@@ -2007,7 +2358,14 @@
         const validTime = track.sampleIds
             .map(sid => track.samples[sid].find(p => p.leadTimeHours === lt))
             .find(p => p && p.validTime)?.validTime;
-        label.innerHTML = '<span class="lead-time">T+' + lt + 'h</span><br><span class="valid-time">' + fmtTime(validTime) + '</span>';
+        // 用 DOM 构建而非拼 innerHTML：CSV 里的时间字段不再被当作 HTML 解析
+        const lead = document.createElement('span');
+        lead.className = 'lead-time';
+        lead.textContent = 'T+' + lt + 'h';
+        const valid = document.createElement('span');
+        valid.className = 'valid-time';
+        valid.textContent = fmtTime(validTime);
+        label.replaceChildren(lead, document.createElement('br'), valid);
     }
 
     function updateTimeStep() {
@@ -2063,6 +2421,7 @@
     // ==================== Track Switching ====================
     function onTrackChange() {
         currentTrackId = document.getElementById('trackSelector').value;
+        savePrefs();
         currentLeadTimeIndex = 0;
         if (isPlaying) togglePlay();
         updateTyphoonNameDisplay();
@@ -2190,10 +2549,10 @@
 
         // 直接从 jsdelivr 下载，绕过服务器代理
         const downloads = [
-            { model: 'FNV3', type: 'ensemble' },
-            { model: 'FNV3', type: 'ensemble_mean' },
-            { model: 'GENC', type: 'ensemble' },
-            { model: 'GENC', type: 'ensemble_mean' }
+            { model: 'OPER', type: 'ensemble' },
+            { model: 'OPER', type: 'ensemble_mean' },
+            { model: 'WNV3', type: 'ensemble' },
+            { model: 'WNV3', type: 'ensemble_mean' }
         ];
         const mirrorBase = 'https://cdn.jsdelivr.net/gh/verychen65/typhoon@main/data';
         let successCount = 0;
@@ -2204,7 +2563,7 @@
             const fname = `${dl.model}_${dl.type}_${latestBatch}_paired.csv`;
             const url = `${mirrorBase}/${fname}`;
             try {
-                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/4)`;
+                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/${downloads.length})`;
                 const resp = await fetch(url, { signal: downloadAbortController ? downloadAbortController.signal : undefined });
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const csv = await resp.text();
@@ -2285,10 +2644,10 @@
         document.getElementById('dropError').style.display = 'none';
 
         const downloads = [
-            { model: 'FNV3', type: 'ensemble' },
-            { model: 'FNV3', type: 'ensemble_mean' },
-            { model: 'GENC', type: 'ensemble' },
-            { model: 'GENC', type: 'ensemble_mean' }
+            { model: 'OPER', type: 'ensemble' },
+            { model: 'OPER', type: 'ensemble_mean' },
+            { model: 'WNV3', type: 'ensemble' },
+            { model: 'WNV3', type: 'ensemble_mean' }
         ];
 
         let successCount = 0;
@@ -2297,7 +2656,7 @@
 
         const promises = downloads.map(async (dl) => {
             try {
-                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/4)`;
+                status.textContent = `正在下载 ${dl.model}/${dl.type}... (${successCount + failCount + 1}/${downloads.length})`;
                 const resp = await fetch(`/api/download?model=${dl.model}&init_time=${encodeURIComponent(batch)}&type=${dl.type}&source=${source}`, { signal: downloadAbortController.signal });
                 const data = await resp.json();
                 if (data.error) throw new Error(data.error);
@@ -2334,6 +2693,16 @@
 
     // ==================== Initialization ====================
     function init() {
+        // 依赖库缺失（CDN 超时/被拦截）时给出明确提示，而不是白屏或只留一行控制台报错
+        const missing = [['L', 'Leaflet'], ['Chart', 'Chart.js'], ['Papa', 'PapaParse']]
+            .filter(pair => !window[pair[0]])
+            .map(pair => pair[1]);
+        if (missing.length) {
+            hideBootStatus();
+            showDropError('依赖库加载失败：' + missing.join(' / ') + '。请刷新页面重试，或检查网络后再次访问。');
+            return;
+        }
+
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
 
@@ -2352,46 +2721,92 @@
             if (e.target.files.length > 0) handleFiles(e.target.files);
         });
 
+        setupKeyboardShortcuts();
+        setupResizeHandling();
+
         loadBatchList();
+        showBootStatus();
         autoLoadLatest();  // 自动加载最新数据
+    }
+
+    // ==================== 首屏加载提示 ====================
+    function showBootStatus() {
+        const boot = document.getElementById('bootStatus');
+        if (boot) boot.classList.add('show');
+    }
+
+    function hideBootStatus() {
+        const boot = document.getElementById('bootStatus');
+        if (boot) boot.classList.remove('show');
+    }
+
+    // ==================== 交互优化 ====================
+    // 键盘控制：← / → 单步，空格播放暂停（输入框、下拉框聚焦时不拦截）
+    function setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            if (!tracks[currentTrackId]) return;
+
+            if (e.key === 'ArrowRight') { nextStep(); e.preventDefault(); }
+            else if (e.key === 'ArrowLeft') { prevStep(); e.preventDefault(); }
+            else if (e.key === ' ' || e.key === 'Spacebar') { togglePlay(); e.preventDefault(); }
+        });
+    }
+
+    // 窗口尺寸变化后重新计算地图尺寸，避免出现灰边或瓦片错位
+    function setupResizeHandling() {
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => { if (map) map.invalidateSize(); }, 150);
+        });
     }
 
     // ==================== Auto Load Latest ====================
     async function autoLoadLatest() {
         const status = document.getElementById('fileStatus');
         const btn = document.getElementById('fetchBtn');
+        // 提到 try 之外：原先 const 声明在 try 块内，catch 里引用会直接抛 ReferenceError，
+        // 导致真正出错时状态栏反而什么都不显示
+        let cachedLoaded = false;
 
         try {
             // 1. 先尝试从本地缓存快速加载（如果有）
-            const cachedLoaded = await loadCachedData();
+            cachedLoaded = await loadCachedData();
 
             // 2. 查询服务器上最新可用批次
             const resp = await fetch('/api/latest_available');
             const latest = await resp.json();
 
             if (!latest.found) {
+                hideBootStatus();
                 if (!cachedLoaded) {
                     status.textContent = '暂无可用数据，请手动选择批次下载';
                 }
                 return;
             }
 
-            // 3. 如果本地缓存已经是最新的，不需要再下载
-            if (cachedLoaded && window._lastLoadedBatch === latest.init_time) {
+            // 目标批次 = 服务器最新可用批次（可能不完整）。
+            // 仅当本地已加载该批次且服务器侧文件完整时才跳过下载；
+            // 不完整批次也主动下载补齐，避免"首次加载停在次新完整批次"。
+            if (cachedLoaded && window._lastLoadedBatch === latest.init_time && latest.complete) {
+                hideBootStatus();
                 status.textContent = `已加载最新数据: ${latest.beijing_time}`;
                 return;
             }
 
-            // 4. 自动下载最新批次
-            status.textContent = `正在自动加载最新数据: ${latest.beijing_time} ...`;
+            // 4. 自动下载最新批次（能下到多少是多少，个别文件缺失不阻塞整体）
+            status.textContent = `正在自动加载最新数据: ${latest.beijing_time}${latest.complete ? '' : '（批次不完整，尽力补齐）'} ...`;
             btn.disabled = true;
             btn.textContent = '⏳ 加载中...';
 
             const downloads = [
-                { model: 'FNV3', type: 'ensemble' },
-                { model: 'FNV3', type: 'ensemble_mean' },
-                { model: 'GENC', type: 'ensemble' },
-                { model: 'GENC', type: 'ensemble_mean' }
+                { model: 'OPER', type: 'ensemble' },
+                { model: 'OPER', type: 'ensemble_mean' },
+                { model: 'WNV3', type: 'ensemble' },
+                { model: 'WNV3', type: 'ensemble_mean' }
             ];
 
             let successCount = 0;
@@ -2399,7 +2814,7 @@
                 try {
                     const r = await fetch(`/api/download?model=${dl.model}&init_time=${latest.init_time}&type=${dl.type}&source=auto`);
                     const d = await r.json();
-                    if (d.error) throw new Error(d.error);
+                    if (d.error) { console.warn(`${dl.model}/${dl.type} 不可用:`, d.error); return; }
                     const fname = `${dl.model}_${dl.type}_${latest.init_time}_paired.csv`;
                     parseCSVText(d.csv, fname);
                     successCount++;
@@ -2411,6 +2826,7 @@
 
             btn.disabled = false;
             btn.textContent = '⬇ 下载全部并导入';
+            hideBootStatus();
 
             if (successCount > 0 && hasAnyData()) {
                 window._lastLoadedBatch = latest.init_time;
@@ -2418,7 +2834,7 @@
                 const sel = document.getElementById('batchSelect');
                 if (sel) sel.value = latest.init_time;
                 activateDataView();
-                status.textContent = `✅ 已自动加载最新数据: ${latest.beijing_time} (${successCount}/4)`;
+                status.textContent = `✅ 已自动加载最新数据: ${latest.beijing_time} (${successCount}/${downloads.length})`;
             } else if (!cachedLoaded) {
                 status.textContent = '❌ 自动加载失败，请手动选择批次下载';
             }
@@ -2426,6 +2842,7 @@
             console.warn('自动加载失败:', e);
             btn.disabled = false;
             btn.textContent = '⬇ 下载全部并导入';
+            hideBootStatus();
             if (!cachedLoaded) {
                 status.textContent = '❌ 自动加载失败，请手动选择批次下载';
             }
@@ -2439,12 +2856,12 @@
             const data = await resp.json();
             if (data.total === 0) return false;
 
-            // Find the latest batch that has all 4 files (FNV3+GENC × ensemble+ensemble_mean)
+            // Find the latest batch that has all 4 files (OPER+WNV3 × ensemble+ensemble_mean)
             const batchCounts = {};
             data.files.forEach(f => {
                 batchCounts[f.init_time] = (batchCounts[f.init_time] || 0) + 1;
             });
-            // Prefer batch with all 4 files, otherwise the latest with at least 1
+            // Prefer batch with all 6 files, otherwise the latest with at least 1
             let bestBatch = null;
             for (const b of data.cached_batches) {
                 if (batchCounts[b] >= 4) { bestBatch = b; break; }
@@ -2455,9 +2872,9 @@
             const status = document.getElementById('fileStatus');
             status.textContent = `正在加载本地缓存 (${bestBatch})...`;
 
-            // Download each cached file via API (will hit local cache)
+            // Download each cached file via API (will hit local cache) — 并行下载提速
             const batchFiles = data.files.filter(f => f.init_time === bestBatch);
-            for (const f of batchFiles) {
+            await Promise.all(batchFiles.map(async f => {
                 try {
                     const r = await fetch(`/api/download?model=${f.model}&init_time=${f.init_time}&type=${f.type}`);
                     const d = await r.json();
@@ -2465,7 +2882,7 @@
                         parseCSVText(d.csv, f.filename);
                     }
                 } catch (e) { console.warn('缓存加载失败:', f.filename, e); }
-            }
+            }));
 
             if (hasAnyData()) {
                 activateDataView();
