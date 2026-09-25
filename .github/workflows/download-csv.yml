@@ -18,11 +18,12 @@ jobs:
       - name: Download missing CSV files
         run: |
           mkdir -p data
-          MODELS="FNV3P2 GENC"
+          MODELS="OPER WNV3"
           TYPES="ensemble ensemble_mean"
 
-          # Check last 30 days for missing data (auto-backfill older batches)
-          for offset in $(seq 0 29); do
+          # 只回溯最近 7 天：页面的批次选择器只看最近 5 天，/api/latest_available 只看最近 3 天，
+          # 回溯 30 天会多下载近 500MB（WNV3 单份 ensemble 就有 2.3MB），首次运行又慢又容易失败。
+          for offset in $(seq 0 6); do
             DATE=$(date -u -d "${offset} days ago" +%Y_%m_%d)
             for hour in 00 06 12 18; do
               TIMESTAMP="${DATE}T${hour}_00"
@@ -57,7 +58,21 @@ jobs:
 
       - name: Clean old files (keep 30 days)
         run: |
-          find data/ -name "*.csv" -mtime +30 -delete 2>/dev/null || true
+          # 注意：不能按 mtime 清理。actions/checkout 出来的文件 mtime 全是"刚刚"，
+          # 原来的 `find -mtime +30 -delete` 永远匹配不到任何文件，仓库只会一路变大。
+          # 改成按文件名里的批次日期判断。
+          CUTOFF=$(date -u -d '30 days ago' +%Y_%m_%d)
+          echo "Removing files older than $CUTOFF"
+          for f in data/*.csv; do
+            [ -e "$f" ] || continue
+            stamp=$(basename "$f" | sed -n 's/.*_\([0-9]\{4\}_[0-9]\{2\}_[0-9]\{2\}T[0-9]\{2\}_00\)_paired\.csv$/\1/p')
+            [ -z "$stamp" ] && continue
+            day=${stamp:0:10}
+            if [[ "$day" < "$CUTOFF" ]]; then
+              echo "  remove $f ($day)"
+              rm -f "$f"
+            fi
+          done
 
       - name: Commit and push
         run: |
