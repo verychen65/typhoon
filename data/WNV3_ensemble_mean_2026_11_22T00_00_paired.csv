@@ -1,0 +1,14 @@
+# If this file contains data that relates to a time less than 1 hour ago or in the future,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time 1 hour or more in the past is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-11-22,SH042026,-1,2026-11-22 00:00:00,0 days 00:00:00,0,-11.9,-166.8,997.0,45.0,37.0,130.0,130.0,93.0,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-22 06:00:00,0 days 06:00:00,6,-11.67,-167.48,1002.2,27.2,71.15039886537488,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-22 12:00:00,0 days 12:00:00,12,-11.64,-168.13,1002.4,26.4,74.86798757974273,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-22 18:00:00,0 days 18:00:00,18,-11.79,-168.61,1002.1,27.1,75.0056218667388,6.362814772264232,5.613448598327993,4.807887178288463,4.915387217666333,0.7074382867140095,0.05971514467427586,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-23 00:00:00,1 days 00:00:00,24,-11.85,-168.99,1001.4,26.4,89.40704193600234,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-23 06:00:00,1 days 06:00:00,30,-12.0,-169.4,1003.6,24.2,93.541372905704,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-22,SH042026,-1,2026-11-23 12:00:00,1 days 12:00:00,36,-11.76,-169.69,1003.3,24.7,84.60081969464875,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
