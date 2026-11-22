@@ -1,0 +1,13 @@
+# If this file contains data that relates to a time less than 1 hour ago or in the future,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time 1 hour or more in the past is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-11-21 18:00:00,SH042026,-1,2026-11-21 18:00:00,0 days 00:00:00,0,-11.9,-165.6,997.0,45.0,55.0,74.0,148.0,130.0,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-21 18:00:00,SH042026,-1,2026-11-22 00:00:00,0 days 06:00:00,6,-11.67,-166.81,999.8,32.9,83.35664041231135,13.721989260737422,12.573891399692197,14.982205519264689,4.226646858270217,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-21 18:00:00,SH042026,-1,2026-11-22 06:00:00,0 days 12:00:00,12,-11.76,-167.6,1000.6,31.0,83.55564509507262,10.199262215461887,1.7722948452003136,2.465095323869207,0.06824538534800469,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-21 18:00:00,SH042026,-1,2026-11-22 12:00:00,0 days 18:00:00,18,-11.77,-168.07,1000.5,31.4,84.06515940357363,17.15422208876463,7.743038123263903,0.7906096197073814,4.660620890612053,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-21 18:00:00,SH042026,-1,2026-11-22 18:00:00,1 days 00:00:00,24,-11.99,-168.33,999.4,32.5,83.04357589752831,13.60454265355138,8.27655673067083,2.702722889439414,8.44300913074737,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-21 18:00:00,SH042026,-1,2026-11-23 00:00:00,1 days 06:00:00,30,-12.2,-168.69,1000.2,32.1,80.43527511283047,8.617259068396931,10.500464141135698,3.4272517734739485,3.2046117914384227,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
