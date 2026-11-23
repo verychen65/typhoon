@@ -1,0 +1,13 @@
+# If this file contains data that relates to a time less than 1 hour ago or in the future,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time 1 hour or more in the past is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-11-23,IO982026,-1,2026-11-23 00:00:00,0 days 00:00:00,0,-7.6,76.8,1006.0,25.0,92.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23,IO982026,-1,2026-11-23 06:00:00,0 days 06:00:00,6,-7.82,77.77,1004.1,33.0,65.82825443785232,15.64892711700858,9.750047059568004,7.0124670860290585,6.319495746942045,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23,IO982026,-1,2026-11-23 12:00:00,0 days 12:00:00,12,-8.35,77.89,1002.6,35.4,57.31863794824507,19.080781854038236,10.932387849439758,11.755327927889425,9.073010471764603,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23,IO982026,-1,2026-11-23 18:00:00,0 days 18:00:00,18,-8.96,77.86,1001.3,42.1,52.265682424147464,37.66043192686422,36.862767405823575,17.962414961856386,20.830469075336076,2.9410973929473787,1.9856170113718823,1.5281087745521837,1.8058441913497818,0.0,0.0,0.0,0.0
+2026-11-23,IO982026,-1,2026-11-24 00:00:00,1 days 00:00:00,24,-9.64,77.43,999.6,41.9,52.64156117088204,43.33725261639898,41.54704373303467,29.20797161859311,24.849263021732146,2.710393371851619,5.937937175734846,0.5502897749072152,0.365562300409761,0.0,0.0,0.0,0.0
+2026-11-23,SH042026,-1,2026-11-23 00:00:00,0 days 00:00:00,0,-11.8,-168.8,1002.0,29.0,46.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
