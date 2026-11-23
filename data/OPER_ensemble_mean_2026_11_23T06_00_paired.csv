@@ -1,0 +1,12 @@
+# If this file contains data that relates to a time less than 1 hour ago or in the future,
+# BY USING IT YOU AGREE TO THE LEGALLY BINDING TERMS OF USE FOUND AT
+#   https://storage.googleapis.com/weathernext-public/terms-of-use.pdf
+# Any data that relates to a time 1 hour or more in the past is licensed under the
+# Creative Commons Attribution International License, Version 4.0 (CC BY 4.0).
+# BEGIN DATA
+init_time,track_id,sample,valid_time,lead_time,lead_time_hours,lat,lon,minimum_sea_level_pressure_hpa,maximum_sustained_wind_speed_knots,radius_of_maximum_winds_km,radius_34_knot_winds_ne_km,radius_34_knot_winds_se_km,radius_34_knot_winds_sw_km,radius_34_knot_winds_nw_km,radius_50_knot_winds_ne_km,radius_50_knot_winds_se_km,radius_50_knot_winds_sw_km,radius_50_knot_winds_nw_km,radius_64_knot_winds_ne_km,radius_64_knot_winds_se_km,radius_64_knot_winds_sw_km,radius_64_knot_winds_nw_km
+2026-11-23 06:00:00,IO982026,-1,2026-11-23 06:00:00,0 days 00:00:00,0,-8.1,77.6,1006.0,25.0,92.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23 06:00:00,IO982026,-1,2026-11-23 12:00:00,0 days 06:00:00,6,-8.25,77.46,1004.1,34.2,66.74709169357165,29.849679996587092,9.986402387577536,4.54184747488717,6.636621765074737,1.3518075329253234,0.06398383015592737,0.06391164540333952,0.02962598928482152,0.0,0.0,0.0,0.0
+2026-11-23 06:00:00,IO982026,-1,2026-11-23 18:00:00,0 days 12:00:00,12,-8.85,77.45,1003.6,36.7,51.3155338445043,25.474774259551243,23.343125745561927,13.774807817050839,13.585024739530612,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23 06:00:00,SH042026,-1,2026-11-23 06:00:00,0 days 00:00:00,0,-11.9,-168.9,1002.0,29.0,46.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2026-11-23 06:00:00,SH042026,-1,2026-11-23 12:00:00,0 days 06:00:00,6,-11.79,-169.1,1002.1,26.7,107.26649274699288,4.6947822275436515,0.07040048348535104,0.0,0.010868691618565967,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
